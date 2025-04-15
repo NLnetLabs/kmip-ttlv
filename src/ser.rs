@@ -351,7 +351,7 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         Ok(self)
     }
 
-    fn serialize_newtype_variant<T: ?Sized>(
+    fn serialize_newtype_variant<T>(
         self,
         name: &'static str,
         variant_index: u32,
@@ -359,7 +359,7 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         value: &T,
     ) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         // If the Override name prefix is present use the tag of this enum when writing the next item instead of that
         // items own tag.
@@ -387,9 +387,9 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     /// We don't use `#[serde(transparent)]` on the structs because then the serialization process would go straight to
     /// functions such as `serialize_i32()` which serialize the V in TTLV but we also need to serialize the TTL part as
     /// well.
-    fn serialize_newtype_struct<T: ?Sized>(self, name: &'static str, value: &T) -> Result<()>
+    fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         if let Some(name) = name.strip_prefix("Transparent:") {
             let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
@@ -431,9 +431,9 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     }
 
     /// Serialize a `Some(value)` as if it were plain `value`.
-    fn serialize_some<T: ?Sized>(self, value: &T) -> Result<()>
+    fn serialize_some<T>(self, value: &T) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         value.serialize(self)
     }
@@ -529,9 +529,9 @@ impl ser::SerializeSeq for &mut TtlvSerializer {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         value.serialize(&mut **self)
     }
@@ -548,9 +548,9 @@ impl ser::SerializeStruct for &mut TtlvSerializer {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         value.serialize(&mut **self)
     }
@@ -568,9 +568,9 @@ impl ser::SerializeTupleStruct for &mut TtlvSerializer {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         value.serialize(&mut **self)
     }
@@ -588,9 +588,9 @@ impl ser::SerializeTupleVariant for &mut TtlvSerializer {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         value.serialize(&mut **self)
     }
