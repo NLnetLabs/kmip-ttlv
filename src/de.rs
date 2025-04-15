@@ -1124,6 +1124,25 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                     };
                     Err(pinpoint!(error, self))
                 } else {
+                    if name.strip_prefix("WithTtlHeader:").is_some() {
+                        let loc = self.location(); // See the note above about working around greedy closure capturing
+                        TtlvDeserializer::read_length(&mut self.src, Some(&mut self.state.borrow_mut()))
+                            .map_err(|err| pinpoint!(err, loc))?;
+
+                        // read an expected TTL header
+                        let loc = self.location(); // See the note above about working around greedy closure capturing
+                        self.item_tag = Some(
+                            TtlvDeserializer::read_tag(&mut self.src, Some(&mut self.state.borrow_mut()))
+                                .map_err(|err| pinpoint!(err, loc))?,
+                        );
+
+                        let loc = self.location(); // See the note above about working around greedy closure capturing
+                        self.item_type = Some(
+                            TtlvDeserializer::read_type(&mut self.src, Some(&mut self.state.borrow_mut()))
+                                .map_err(|err| pinpoint!(err, loc))?,
+                        );
+                    }
+
                     visitor.visit_enum(&mut *self) // jumps to impl EnumAccess below
                 }
             }
