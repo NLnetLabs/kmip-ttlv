@@ -485,7 +485,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
             self.item_tag = self.group_tag;
             self.item_type = self.group_type;
         } else {
-            self.item_start = self.pos() as u64;
+            self.item_start = self.pos();
             self.item_tag = None;
             self.item_type = None;
 
@@ -1602,7 +1602,7 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
         let loc = self.location(); // See the note above about working around greedy closure capturing
         let seq_len = TtlvDeserializer::read_length(&mut self.src, Some(&mut self.state.borrow_mut()))
             .map_err(|err| pinpoint!(err, loc))?;
-        let seq_start = self.pos() as u64;
+        let seq_start = self.pos();
         let seq_end = seq_start + (seq_len as u64);
 
         let loc = self.location(); // See the note above about working around greedy closure capturing

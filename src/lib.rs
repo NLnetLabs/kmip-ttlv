@@ -148,7 +148,7 @@
 //!   see below for a special note about `None`)_.
 //!
 //! - The following Rust types **CANNOT** be _deserialized_ from TTLV: `()`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`,
-//!  `f32`, `f64`, `char`, `str`, map, `&[u8]`, `()`. `char`,
+//!   `f32`, `f64`, `char`, `str`, map, `&[u8]`, `()`. `char`,
 //!
 //! - The following TTLV types **CANNOT** _yet_ be serialized to TTLV: Big Integer (0x04), Interval (0x0A).
 //!

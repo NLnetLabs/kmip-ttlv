@@ -112,10 +112,12 @@ impl PrettyPrinter {
 
         /// Given a read cursor into a byte stream, attempt to read the next TTLV item and render its metadata and value in
         /// humand readable form to a result string. The TTLV item to process should have the form:
+        ///
         ///   - T: 3 bytes of "tag"
         ///   - T: 1 byte of "type"
         ///   - L: 4 bytes of "length"
         ///   - V: L bytes of "value"
+        ///
         /// On success returns the human readable string representation of the parsed TTLV item and if it was a "Structure"
         /// header also returns the byte length of the structure that follows. If the bytes in the stream at the cursor
         /// position are not valid TTLV an error will be returned.
@@ -137,11 +139,11 @@ impl PrettyPrinter {
                 TtlvType::Structure   => { len = Some(TtlvDeserializer::read_length(cursor, Some(&mut sm))? as u64); EMPTY_STRING }
                 TtlvType::Integer     => { format!(" {data:#08X} ({data})", data = TtlvInteger::read(cursor)?.deref()) }
                 TtlvType::LongInteger => { format!(" {data:#08X} ({data})", data = TtlvLongInteger::read(cursor)?.deref()) }
-                TtlvType::BigInteger  => { format!(" {data}", data = hex::encode_upper(&TtlvBigInteger::read(cursor)?.deref())) }
+                TtlvType::BigInteger  => { format!(" {data}", data = hex::encode_upper(TtlvBigInteger::read(cursor)?.deref())) }
                 TtlvType::Enumeration => { format!(" {data:#08X} ({data})", data = TtlvEnumeration::read(cursor)?.deref()) }
                 TtlvType::Boolean     => { format!(" {data}", data = TtlvBoolean::read(cursor)?.deref()) }
                 TtlvType::TextString  => { format!(" {data}", data = TtlvTextString::read(cursor)?.deref()) }
-                TtlvType::ByteString  => { format!(" {data}", data = hex::encode_upper(&TtlvByteString::read(cursor)?.deref())) }
+                TtlvType::ByteString  => { format!(" {data}", data = hex::encode_upper(TtlvByteString::read(cursor)?.deref())) }
                 TtlvType::DateTime    => { format!(" {data:#08X}", data = TtlvDateTime::read(cursor)?.deref()) }
             };
 
@@ -165,7 +167,7 @@ impl PrettyPrinter {
             };
 
                 let tag = format!("{:06X}", *tag);
-                let tag = tag.strip_prefix(&strip_tag_prefix).unwrap_or(&tag);
+                let tag = tag.strip_prefix(strip_tag_prefix).unwrap_or(&tag);
                 format!("{}{}", tag, data)
             };
 
