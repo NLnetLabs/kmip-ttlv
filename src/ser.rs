@@ -361,18 +361,8 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     where
         T: Serialize,
     {
-        // If the Override name prefix is present use the tag of this enum when writing the next item instead of that
-        // items own tag.
-        let (name, set_ignore_next_tag) = if let Some(name) = name.strip_prefix("Override:") {
-            (name, true)
-        } else {
-            (name, false)
-        };
-
         // If the variant name is "Transparent" serialize the inner value directly, don't wrap it in a TTLV Structure.
         if variant == "Transparent" {
-            let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
-            self.write_tag(item_tag, set_ignore_next_tag)?;
             value.serialize(self)
         } else {
             let mut ser = self.serialize_tuple_variant(name, variant_index, variant, 1)?;
@@ -819,6 +809,31 @@ mod test {
     }
 
     #[test]
+    fn test_optional_values_that_are_missing_can_be_skipped() {
+        #[derive(Serialize)]
+        #[serde(rename = "0xAABBCC")]
+        struct SomeStruct {
+            #[serde(skip_serializing_if = "Option::is_none")]
+            some_field: Option<i32>,
+        }
+        let to_encode = SomeStruct { some_field: None };
+        assert_eq!(
+            "AABBCC0100000000",
+            hex::encode_upper(to_vec(&to_encode).unwrap()),
+            "expected hex (left) differs to the generated hex (right)"
+        );
+    }
+
+    #[test]
+    fn test_optional_values_that_are_missing_cannot_be_serialized() {
+        #[derive(Serialize)]
+        #[serde(rename = "0xAABBCC")]
+        struct SomeStruct(Option<i32>);
+        let to_encode = SomeStruct(None);
+        assert!(to_vec(&to_encode).is_err()); // Error: serializing None is not supported.
+    }
+
+    #[test]
     fn test_serde_derive_doesnt_skip_an_inner_none_inside_a_newtype() {
         // One would expect the following to work, but Serde Derive ignores the skip directive in this case and still
         // attempts to serialize the None. What would it mean for a Structure expected to have a single field for that
@@ -833,7 +848,7 @@ mod test {
     }
 
     #[test]
-    fn test_transparent_is_only_for_newtypes_not_for_tuples() {
+    fn test_transparent_is_only_for_newtypes_not_for_tuple_structs() {
         // Serde Derive will correctly ignore the None field if it is not the only field, but then in this case
         // "Transparent:0xNNNNNNN" isn't supported because it is intended only for the case of a single inner field.
         #[derive(Serialize)]
