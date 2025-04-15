@@ -256,9 +256,9 @@ pub(crate) struct TtlvDeserializer<'de: 'c, 'c> {
     group_tag: Option<TtlvTag>,
     group_type: Option<TtlvType>,
     group_end: Option<u64>,
-    group_fields: &'static [&'static str], // optional field handling: expected fields to compare to actual fields
-    group_item_count: usize,               // optional field handling: index into the group_fields array
-    group_homogenous: bool,                // sequence/map field handling: are all items in the group of the same type?
+    group_fields: Option<FieldNames>, // optional field handling: expected fields to compare to actual fields
+    group_item_count: usize,          // optional field handling: index into the group_fields array
+    group_homogenous: bool,           // sequence/map field handling: are all items in the group of the same type?
 
     // for the current field being parsed
     item_start: u64, // optional field handling: point to return to if field is missing
@@ -299,7 +299,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
             group_tag: None,
             group_type: None,
             group_end: None,
-            group_fields: &[],
+            group_fields: None,
             group_item_count: 0,
             group_homogenous: false,
             item_start: 0,
@@ -320,7 +320,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         group_tag: TtlvTag,
         group_type: TtlvType,
         group_end: u64,
-        group_fields: &'static [&'static str],
+        group_fields: Option<FieldNames>,
         group_homogenous: bool, // are all items in the group the same tag and type?
         unit_enum_store: Rc<RefCell<HashMap<TtlvTag, String>>>,
         tag_path: Rc<RefCell<Vec<TtlvTag>>>,
@@ -517,20 +517,28 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
 
         self.group_item_count += 1;
 
-        self.item_unexpected = if self.group_fields.is_empty() {
+        self.item_unexpected = if let Some(group_fields) = &self.group_fields {
+            let field_index = self.group_item_count - 1;
+            let actual_tag_str = &self.item_tag.unwrap().to_string();
+            let expected_tag_str = match group_fields {
+                FieldNames::SerdeNames(names) => names
+                    .get(field_index)
+                    .map_or_else(|| actual_tag_str.clone(), |v| v.to_string()),
+                FieldNames::TagIds(tag_ids) => tag_ids
+                    .get(field_index)
+                    .map_or_else(|| actual_tag_str.clone(), |v| v.to_string()),
+            };
+            let res = actual_tag_str != &expected_tag_str;
+            self.item_identifier = Some(expected_tag_str);
+
+            // deserialize_option() will later use this to decide whether or
+            // not the absence of a value is acceptable or not
+            res
+        } else {
             // We have no idea which field is expected so this field cannot be unexpected, but we also cannot set the
             // item identifier to announce for this field (though we might establish an identifier subsequently, e.g.
             // in the case of selecting the appropriate Rust enum variant).
             false
-        } else {
-            let field_index = self.group_item_count - 1;
-            let actual_tag_str = &self.item_tag.unwrap().to_string();
-            let expected_tag_str = self
-                .group_fields
-                .get(field_index)
-                .map_or_else(|| actual_tag_str.clone(), |v| v.to_string());
-            self.item_identifier = Some(expected_tag_str.clone());
-            actual_tag_str != &expected_tag_str
         };
 
         Ok(true)
@@ -778,7 +786,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             group_tag,
             group_type,
             group_end,
-            fields,
+            Some(FieldNames::SerdeNames(fields)),
             false, // struct member fields can have different tags and types
             self.tag_value_store.clone(),
             self.tag_path.clone(),
@@ -819,7 +827,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         visitor.visit_newtype_struct(self) // jumps to to the appropriate deserializer fn such as deserialize_string()
     }
 
-    /// Deserialize the bytes at the current cursor position to a Rust vector.
+    /// Deserialize the bytes at the current cursor position to a Rust vector (or tuple struct).
     ///
     /// The use of a Rust vector by the caller is assumed to signify that the next items in the TTLV byte stream will
     /// represent an instance of "MAY be repeated" in the KMIP 1.0 spec. E.g. for [section 4.24 Query of the KMIP 1.0 spec](https://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_Toc262581232)
@@ -862,7 +870,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             seq_tag,
             seq_type,
             seq_end,
-            &[],
+            None,
             true, // sequence fields must all have the same tag and type
             self.tag_value_store.clone(),
             self.tag_path.clone(),
@@ -1115,6 +1123,25 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                     };
                     Err(pinpoint!(error, self))
                 } else {
+                    if name.strip_prefix("WithTtlHeader:").is_some() {
+                        let loc = self.location(); // See the note above about working around greedy closure capturing
+                        TtlvDeserializer::read_length(&mut self.src, Some(&mut self.state.borrow_mut()))
+                            .map_err(|err| pinpoint!(err, loc))?;
+
+                        // read an expected TTL header
+                        let loc = self.location(); // See the note above about working around greedy closure capturing
+                        self.item_tag = Some(
+                            TtlvDeserializer::read_tag(&mut self.src, Some(&mut self.state.borrow_mut()))
+                                .map_err(|err| pinpoint!(err, loc))?,
+                        );
+
+                        let loc = self.location(); // See the note above about working around greedy closure capturing
+                        self.item_type = Some(
+                            TtlvDeserializer::read_type(&mut self.src, Some(&mut self.state.borrow_mut()))
+                                .map_err(|err| pinpoint!(err, loc))?,
+                        );
+                    }
+
                     visitor.visit_enum(&mut *self) // jumps to impl EnumAccess below
                 }
             }
@@ -1362,11 +1389,81 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         Err(pinpoint!(SerdeError::UnsupportedRustType("unit struct"), self))
     }
 
-    fn deserialize_tuple_struct<V>(self, _name: &'static str, _len: usize, _visitor: V) -> Result<V::Value>
+    /// Deserialize into a Rust tuple struct, e.g. struct SomeType(A,B,C).
+    ///
+    /// When deserializing a struct each field has a name and that name can be
+    /// forced to be given to us as a different name via a `#[serde(rename =
+    /// "0x420077)]` style Rust attribute), and we can then use those 0x420077
+    /// or whatever string representation of a KMIP tag value to verify that
+    /// the data encountered in the byte source we are reading from matches
+    /// the tag we are expecting to deserialize at this point.
+    ///
+    /// When deserializing a tuple struct however there are no names for the
+    /// members, and so we don't know the tag values to expect. We work around
+    /// this by requiring the name of the tuple struct itself to be of the
+    /// form `#[serde(rename = "0x420077(0x42000D,0x42000E,0x42000F,...)]`,
+    /// i.e. the struct definer has to annotate the struct with the expected
+    /// sequence of tags (including those that may optionally appear) in the
+    /// order that they should appear if present in the byte source.
+    fn deserialize_tuple_struct<V>(self, name: &'static str, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(pinpoint!(SerdeError::UnsupportedRustType("tuple struct"), self))
+        let (name, field_tags) = name.split_once('(').ok_or_else(|| {
+            let msg = "Deserialization of a Rust tuple struct from TTLV requires that the Serde name of the tuple struct be of the form '0xXXXXXX(0xYYYYYY,0xZZZZZZ,...)' where the TTLV tag identifiers inside the parentheses denote the tag ids of the fields that the bytes should contain in order to match the fields of the tuple struct.";
+            pinpoint!(SerdeError::Other(msg.to_string()), self.location())
+        })?;
+
+        let field_tags = field_tags.strip_suffix(')').ok_or_else(|| {
+            let msg = "Deserialization of a Rust tuple struct from TTLV requires that the Serde name of the tuple struct be of the form '0xXXXXXX(0xYYYYYY,0xZZZZZZ,...)' where the TTLV tag identifiers inside the parentheses denote the tag ids of the fields that the bytes should contain in order to match the fields of the tuple struct.";
+            pinpoint!(SerdeError::Other(msg.to_string()), self.location())
+        })?;
+
+        let field_tags = field_tags.split(',').map(ToString::to_string).collect::<Vec<String>>();
+
+        let (_, group_tag, group_type, group_end) = self.prepare_to_descend(name)?;
+
+        let mut struct_cursor = self.src.clone();
+
+        self.tag_path.borrow_mut().push(group_tag);
+
+        let descendent_parser = TtlvDeserializer::from_cursor(
+            &mut struct_cursor,
+            self.state.clone(),
+            group_tag,
+            group_type,
+            group_end,
+            Some(FieldNames::TagIds(field_tags)),
+            false, // struct member fields can have different tags and types
+            self.tag_value_store.clone(),
+            self.tag_path.clone(),
+        );
+
+        let r = visitor.visit_seq(descendent_parser); // jumps to impl SeqAccess below
+
+        // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
+        self.src.set_position(struct_cursor.position());
+
+        match r {
+            Ok(_) => {
+                self.tag_path.borrow_mut().pop();
+                r
+            }
+            Err(err) => {
+                // Errors can be raised directly by Serde Derive, e.g. SerdeError::Other("missing field"), which
+                // necessarily have ErrorLocation::is_unknown() as Serde Derive is not aware of our ErrorLocation type.
+                // When that happens, this is the first opportunity after calling `visitor.visit_map()` that we have to
+                // add the missing location data. However, if the error _was_ raised by our code and not by Serde
+                // Derive it probably already has location details. Therefore we "merge" the current location into the
+                // error so that only missing details are added if needed as the existing location details may more
+                // point more accurately to the source of the problem than we are able to indicate here (we don't know
+                // where in the `visit_map()` process the issue occured, on which field and at which byte, we just use
+                // the current cursor position and hope that is good enough).
+                let (kind, loc) = err.into_inner();
+                let new_loc = loc.merge(self.location());
+                Err(Error::new(kind, new_loc))
+            }
+        }
     }
 
     fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
@@ -1408,7 +1505,8 @@ impl<'de: 'c, 'c> MapAccess<'de> for TtlvDeserializer<'de, 'c> {
     }
 }
 
-// Deserialize a Vec of one type/tag
+// Deserialize a Vec of one type/tag (group_homegenous == true), or a sequence
+// of potentially different types/tags (group_homegenous == false).
 impl<'de: 'c, 'c> SeqAccess<'de> for TtlvDeserializer<'de, 'c> {
     type Error = Error;
 
@@ -1416,8 +1514,13 @@ impl<'de: 'c, 'c> SeqAccess<'de> for TtlvDeserializer<'de, 'c> {
     where
         T: serde::de::DeserializeSeed<'de>,
     {
-        if !self.read_item_key(self.group_item_count == 0)? {
-            // The end of the containing group was reached
+        if self.group_item_count > 0 && self.group_item_count == self.group_fields.as_ref().map_or(0, |v| v.len()) {
+            // The end of the containing group was reached because the
+            // expected number of items was read.
+            Ok(None)
+        } else if !self.read_item_key(self.group_homogenous && self.group_item_count == 0)? {
+            // The end of the containing group was reached because no more
+            // items are available.
             Ok(None)
         } else if self.group_homogenous && (self.item_tag != self.group_tag || self.item_type != self.group_type) {
             // The next tag is not part of the sequence.
@@ -1492,7 +1595,7 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
             seq_tag,
             seq_type,
             seq_end,
-            &[],
+            None,
             false, // don't require all fields in the sequence to be of the same tag and type
             self.tag_value_store.clone(),
             self.tag_path.clone(),
@@ -1511,5 +1614,21 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
         V: Visitor<'de>,
     {
         Err(pinpoint!(SerdeError::UnsupportedRustType("struct variant"), self))
+    }
+}
+
+//----
+
+enum FieldNames {
+    SerdeNames(&'static [&'static str]),
+    TagIds(Vec<String>),
+}
+
+impl FieldNames {
+    pub fn len(&self) -> usize {
+        match self {
+            FieldNames::SerdeNames(v) => v.len(),
+            FieldNames::TagIds(v) => v.len(),
+        }
     }
 }
