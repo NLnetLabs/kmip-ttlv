@@ -348,6 +348,8 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         // The Override name prefix has no meaning in the case of a tuple variant, it only applies to a single inner
         // tagged value whose tag should be overriden. See serialize_newtype_variant().
         let name = name.strip_prefix("Override:").unwrap_or(name);
+        // The WithTtlHeader name prefix is for deserialization only, ignore it.
+        let name = name.strip_prefix("WithTtlHeader:").unwrap_or(name);
         let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
         self.write_tag(item_tag, false)?;
         self.write_type(TtlvType::Structure)?;
