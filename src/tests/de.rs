@@ -89,7 +89,10 @@ fn test_io_error_insufficient_read_buffer_size() {
             &reject_if_response_larger_than(*max_readable_bytes),
         );
 
-        assert_matches!(res.unwrap_err().kind(), ErrorKind::ResponseSizeExceedsLimit(len) if len == &full_input_byte_len);
+        assert!(res.is_err());
+        let (err, _) = res.unwrap_err();
+
+        assert_matches!(err.kind(), ErrorKind::ResponseSizeExceedsLimit(len) if len == &full_input_byte_len);
     }
 }
 
@@ -98,11 +101,13 @@ fn test_io_error_unexpected_eof_with_reader() {
     use fixtures::simple::*;
 
     for max_readable_bytes in &[0, 1, 2, 10] {
-        let err = from_reader::<RootType, _>(
+        let res = from_reader::<RootType, _>(
             make_limited_reader(ttlv_bytes(), *max_readable_bytes),
             &Config::default(),
-        )
-        .unwrap_err();
+        );
+
+        assert!(res.is_err());
+        let (err, _) = res.unwrap_err();
 
         assert_matches!(err.kind(), ErrorKind::IoError(io_error) if io_error.kind() == std::io::ErrorKind::UnexpectedEof);
     }
