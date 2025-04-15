@@ -15,15 +15,14 @@ use serde::{
     Deserialize, Deserializer,
 };
 
-use crate::traits::AnySyncRead;
 use crate::{
-    error::Error,
-    error::{ErrorKind, ErrorLocation, MalformedTtlvError, Result, SerdeError},
+    error::{Error, ErrorKind, ErrorLocation, MalformedTtlvError, Result, SerdeError},
+    traits::AnySyncRead,
     types::{
-        self, FieldType, SerializableTtlvType, TtlvBoolean, TtlvDateTime, TtlvEnumeration, TtlvInteger, TtlvLength,
-        TtlvLongInteger, TtlvStateMachine, TtlvStateMachineMode, TtlvTextString,
+        self, FieldType, SerializableTtlvType, TtlvBigInteger, TtlvBoolean, TtlvByteString, TtlvDateTime,
+        TtlvEnumeration, TtlvInteger, TtlvLength, TtlvLongInteger, TtlvStateMachine, TtlvStateMachineMode, TtlvTag,
+        TtlvTextString, TtlvType,
     },
-    types::{TtlvBigInteger, TtlvByteString, TtlvTag, TtlvType},
 };
 
 // --- Public interface ------------------------------------------------------------------------------------------------
