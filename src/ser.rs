@@ -183,6 +183,11 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     /// When using #[derive(Serialize)] you should use #[serde(rename = "0xAABBCC")] to cause the name argument value
     /// received here to be the TTLV tag value to use when serializing the structure to the write buffer.
     fn serialize_tuple_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> {
+        let name = match name.split_once('(') {
+            Some((name, _field_tags)) => name,
+            None => name,
+        };
+
         let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
         self.write_tag(item_tag, false)?;
         self.write_type(TtlvType::Structure)?;
