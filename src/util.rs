@@ -218,12 +218,7 @@ impl PrettyPrinter {
                     // Add (with correct indentation) the human readable result of deserialization to the "report" built up
                     // so far.
                     if !diagnostic_report {
-                        let _ = write!(
-                            report,
-                            "{width:width$}{ttlv_string}",
-                            width = indent,
-                            ttlv_string = &ttlv_string
-                        );
+                        let _ = write!(report, "{:indent$}{ttlv_string}", " ");
                     } else {
                         report.push_str(&ttlv_string);
                     }
