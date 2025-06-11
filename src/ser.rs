@@ -549,7 +549,7 @@ impl ser::SerializeStruct for &mut TtlvSerializer {
     where
         T: Serialize + ?Sized,
     {
-        self.write_tag(TtlvTag::from_str(key).unwrap(), true)?;
+        self.write_tag(TtlvTag::from_str(_key).unwrap(), true)?;
         value.serialize(&mut **self)
     }
 
