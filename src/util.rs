@@ -133,17 +133,17 @@ impl PrettyPrinter {
 
             let fragment = if !diagnostic_report {
                 #[rustfmt::skip]
-            let data = match typ {
-                TtlvType::Structure   => { len = Some(TtlvDeserializer::read_length(cursor, Some(&mut sm))? as u64); EMPTY_STRING }
-                TtlvType::Integer     => { format!(" {data:#08X} ({data})", data = TtlvInteger::read(cursor)?.deref()) }
-                TtlvType::LongInteger => { format!(" {data:#08X} ({data})", data = TtlvLongInteger::read(cursor)?.deref()) }
-                TtlvType::BigInteger  => { format!(" {data}", data = hex::encode_upper(&TtlvBigInteger::read(cursor)?.deref())) }
-                TtlvType::Enumeration => { format!(" {data:#08X} ({data})", data = TtlvEnumeration::read(cursor)?.deref()) }
-                TtlvType::Boolean     => { format!(" {data}", data = TtlvBoolean::read(cursor)?.deref()) }
-                TtlvType::TextString  => { format!(" {data}", data = TtlvTextString::read(cursor)?.deref()) }
-                TtlvType::ByteString  => { format!(" {data}", data = hex::encode_upper(&TtlvByteString::read(cursor)?.deref())) }
-                TtlvType::DateTime    => { format!(" {data:#08X}", data = TtlvDateTime::read(cursor)?.deref()) }
-            };
+                let data = match typ {
+                    TtlvType::Structure   => { len = Some(TtlvDeserializer::read_length(cursor, Some(&mut sm))? as u64); EMPTY_STRING }
+                    TtlvType::Integer     => { format!(" {data:#08X} ({data})", data = TtlvInteger::read(cursor)?.deref()) }
+                    TtlvType::LongInteger => { format!(" {data:#08X} ({data})", data = TtlvLongInteger::read(cursor)?.deref()) }
+                    TtlvType::BigInteger  => { format!(" {data}", data = hex::encode_upper(&TtlvBigInteger::read(cursor)?.deref())) }
+                    TtlvType::Enumeration => { format!(" {data:#08X} ({data})", data = TtlvEnumeration::read(cursor)?.deref()) }
+                    TtlvType::Boolean     => { format!(" {data}", data = TtlvBoolean::read(cursor)?.deref()) }
+                    TtlvType::TextString  => { format!(" {data}", data = TtlvTextString::read(cursor)?.deref()) }
+                    TtlvType::ByteString  => { format!(" {data}", data = hex::encode_upper(&TtlvByteString::read(cursor)?.deref())) }
+                    TtlvType::DateTime    => { format!(" {data:#08X}", data = TtlvDateTime::read(cursor)?.deref()) }
+                };
 
                 if let Some(tag_name) = tag_map.get(&tag) {
                     format!("Tag: {} ({:#06X}), Type: {}, Data:{}\n", tag_name, *tag, typ, data)
@@ -152,17 +152,17 @@ impl PrettyPrinter {
                 }
             } else {
                 #[rustfmt::skip]
-            let data = match typ {
-                TtlvType::Structure   => { len = Some(TtlvDeserializer::read_length(cursor, Some(&mut sm))? as u64); EMPTY_STRING }
-                TtlvType::Integer     => { TtlvInteger::read(cursor)?; "i".to_string() }
-                TtlvType::LongInteger => { TtlvLongInteger::read(cursor)?; "l".to_string() }
-                TtlvType::BigInteger  => { TtlvBigInteger::read(cursor)?; "I".to_string() }
-                TtlvType::Enumeration => { format!("e{data:X}:", data = TtlvEnumeration::read(cursor)?.deref()) }
-                TtlvType::Boolean     => { TtlvBoolean::read(cursor)?; "b".to_string() }
-                TtlvType::TextString  => { TtlvTextString::read(cursor)?; "t".to_string() }
-                TtlvType::ByteString  => { TtlvByteString::read(cursor)?; "o".to_string() }
-                TtlvType::DateTime    => { TtlvDateTime::read(cursor)?; "d".to_string() }
-            };
+                let data = match typ {
+                    TtlvType::Structure   => { len = Some(TtlvDeserializer::read_length(cursor, Some(&mut sm))? as u64); EMPTY_STRING }
+                    TtlvType::Integer     => { TtlvInteger::read(cursor)?; "i".to_string() }
+                    TtlvType::LongInteger => { TtlvLongInteger::read(cursor)?; "l".to_string() }
+                    TtlvType::BigInteger  => { TtlvBigInteger::read(cursor)?; "I".to_string() }
+                    TtlvType::Enumeration => { format!("e{data:X}:", data = TtlvEnumeration::read(cursor)?.deref()) }
+                    TtlvType::Boolean     => { TtlvBoolean::read(cursor)?; "b".to_string() }
+                    TtlvType::TextString  => { TtlvTextString::read(cursor)?; "t".to_string() }
+                    TtlvType::ByteString  => { TtlvByteString::read(cursor)?; "o".to_string() }
+                    TtlvType::DateTime    => { TtlvDateTime::read(cursor)?; "d".to_string() }
+                };
 
                 let tag = format!("{:06X}", *tag);
                 let tag = tag.strip_prefix(&strip_tag_prefix).unwrap_or(&tag);
