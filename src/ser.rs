@@ -548,7 +548,7 @@ impl ser::SerializeStruct for &mut TtlvSerializer {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
         T: Serialize + ?Sized,
     {
