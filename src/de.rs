@@ -61,6 +61,7 @@ use crate::{
         TtlvTextString, TtlvType,
     },
 };
+use tracing::{instrument, trace};
 
 // --- Public interface ------------------------------------------------------------------------------------------------
 
@@ -117,7 +118,9 @@ where
 {
     let cursor = &mut Cursor::new(bytes);
     let mut deserializer = TtlvDeserializer::from_slice(cursor);
-    T::deserialize(&mut deserializer)
+    let r = T::deserialize(&mut deserializer)?;
+    trace!("from_slice: Finished");
+    Ok(r)
 }
 
 /// Read and deserialize bytes from the given reader.
@@ -127,6 +130,7 @@ where
 /// Attempting to process a stream whose initial TTL header length value is larger the config max_bytes, if any, will
 /// result in`Error::ResponseSizeExceedsLimit`.
 #[maybe_async::maybe_async]
+#[instrument(level = "trace", skip(reader))]
 pub async fn from_reader<T, R>(mut reader: R, config: &Config) -> std::result::Result<(T, Vec<u8>), (Error, Vec<u8>)>
 where
     T: DeserializeOwned,
@@ -319,6 +323,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         ]
     }
 
+    #[instrument(level = "trace")]
     pub fn from_slice(cursor: &'c mut Cursor<&'de [u8]>) -> Self {
         Self {
             src: cursor,
@@ -341,6 +346,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace")]
     #[allow(clippy::too_many_arguments)]
     fn from_cursor(
         src: &'c mut Cursor<&'de [u8]>,
@@ -390,6 +396,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
     /// If this function is unable to read 3 bytes from the given reader an [Error::IoError] will be returned.
     ///
     /// If the state machine is not in the expected state then [Error::UnexpectedTtlvField] will be returned.
+    #[instrument(level = "trace", skip(src))]
     pub(crate) fn read_tag<R>(
         mut src: R,
         state: Option<&mut TtlvStateMachine>,
@@ -400,7 +407,9 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         if let Some(state) = state {
             state.advance(FieldType::Tag)?;
         }
-        TtlvTag::read(&mut src)
+        let v = TtlvTag::read(&mut src)?;
+        trace!("Read TTLV tag: {v}");
+        Ok(v)
     }
 
     /// Read a 1-byte TTLV type into an [ItemType]
@@ -417,6 +426,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
     /// we do not yet support an error will be returned.
     ///
     /// If the state machine is not in the expected state then [Error::UnexpectedTtlvField] will be returned.
+    #[instrument(level = "trace", skip(src))]
     pub(crate) fn read_type<R>(
         mut src: R,
         state: Option<&mut TtlvStateMachine>,
@@ -427,7 +437,9 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         if let Some(state) = state {
             state.advance(FieldType::Type)?;
         }
-        TtlvType::read(&mut src)
+        let v = TtlvType::read(&mut src)?;
+        trace!("Read TTLV type: {v}");
+        Ok(v)
     }
 
     /// Read a 4-byte TTLV length into a u32.
@@ -441,6 +453,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
     /// If this function is unable to read 4 bytes from the given reader an [Error::IoError] will be returned.
     ///
     /// If the state machine is not in the expected state then [Error::UnexpectedTtlvField] will be returned.
+    #[instrument(level = "trace", skip(src))]
     pub(crate) fn read_length<R>(
         mut src: R,
         state: Option<&mut TtlvStateMachine>,
@@ -451,7 +464,10 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         if let Some(state) = state {
             state.advance(FieldType::Length)?;
         }
-        TtlvLength::read(&mut src).map(|len| *len)
+
+        let v = TtlvLength::read(&mut src).map(|len| *len)?;
+        trace!("Read TTLV length: {v}");
+        Ok(v)
     }
 
     /// Read the next TTLV tag and type header and prepare for full deserialization.
@@ -459,6 +475,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
     /// Returns Ok(true) if there is data available, Ok(false) if the end of the current group (TTLV sequence or
     /// structure) has been reached or an I/O error or `MalformedTtlvError` (e.g. if the tag or type are invalid or if
     /// the read cursor is past the last byte of the group).
+    #[instrument(level = "trace", skip(self))]
     fn read_item_key(&mut self, use_group_fields: bool) -> Result<bool> {
         if let Some(group_end) = self.group_end {
             match self.pos().cmp(&group_end) {
@@ -572,6 +589,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         Ok(true)
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn get_start_tag_type(&mut self) -> Result<(u64, TtlvTag, TtlvType)> {
         let (group_start, group_tag, group_type) = if self.pos() == 0 {
             // When invoked by Serde via from_slice() there is no prior call to next_key_seed() that reads the tag and
@@ -597,6 +615,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         Ok((group_start, group_tag, group_type))
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn prepare_to_descend(&mut self, name: &'static str) -> Result<(u64, TtlvTag, TtlvType, u64)> {
         let loc = self.location(); // See the note above about working around greedy closure capturing
         let wanted_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, loc))?;
@@ -630,6 +649,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         Ok((group_start, group_tag, group_type, group_end))
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn is_variant_applicable(&self, variant: &'static str) -> Result<bool> {
         // str::split_once() wasn't stablized until Rust 1.52.0 but as we want to be usable by Krill, and Krill
         // supported Rust >= 1.49.0 at the time of writing, we use our own split_once() implementation.
@@ -652,6 +672,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         Ok(false)
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn handle_matcher_rule_eq(&self, wanted_tag: &str, wanted_val: &str) -> std::result::Result<bool, types::Error> {
         if wanted_tag == "type" {
             // See if wanted_val is a literal string that matches the TTLV type we are currently deserializing
@@ -667,11 +688,13 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
                     | ("ByteString", TtlvType::ByteString)
                     | ("DateTime", TtlvType::DateTime)
             ) {
+                trace!("Match found");
                 return Ok(true);
             }
         } else if let Ok(wanted_tag) = TtlvTag::from_str(wanted_tag) {
             if let Some(seen_enum_val) = self.lookup_tag_value(wanted_tag) {
                 if seen_enum_val == wanted_val {
+                    trace!("Match found");
                     return Ok(true);
                 }
             }
@@ -680,9 +703,11 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         Ok(false)
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn handle_matcher_rule_ge(&self, wanted_tag: &str, wanted_val: &str) -> std::result::Result<bool, types::Error> {
         if let Some(seen_enum_val) = self.tag_value_store.borrow().get(&TtlvTag::from_str(wanted_tag)?) {
             if TtlvTag::from_str(seen_enum_val)?.deref() >= TtlvTag::from_str(wanted_val)?.deref() {
+                trace!("Match found");
                 return Ok(true);
             }
         }
@@ -690,12 +715,14 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         Ok(false)
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn handle_matcher_rule_in(&self, wanted_tag: &str, wanted_val: &str) -> std::result::Result<bool, types::Error> {
         let wanted_values = wanted_val.strip_prefix('[').and_then(|v| v.strip_suffix(']'));
         if let Some(wanted_values) = wanted_values {
             if let Some(seen_enum_val) = self.tag_value_store.borrow().get(&TtlvTag::from_str(wanted_tag)?) {
                 for wanted_value in wanted_values.split(',') {
                     if *seen_enum_val == wanted_value.trim() {
+                        trace!("Match found");
                         return Ok(true);
                     }
                 }
@@ -719,17 +746,21 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         loc
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn remember_tag_value<T>(&self, tag: TtlvTag, value: T)
     where
         String: From<T>,
+        T: std::fmt::Debug,
     {
         self.tag_value_store.borrow_mut().insert(tag, value.into());
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn lookup_tag_value(&self, tag: TtlvTag) -> Option<String> {
         self.tag_value_store.borrow().get(&tag).cloned()
     }
 
+    #[instrument(level = "trace", skip(self))]
     fn seek_forward(&mut self, num_bytes_to_skip: u32) -> Result<u64> {
         use std::io::Seek;
         self.src
@@ -747,6 +778,7 @@ impl<'de: 'c, 'c> ContextualErrorSupport for TtlvDeserializer<'de, 'c> {
 
 macro_rules! unsupported_type {
     ($deserialize:ident, $type:ident) => {
+        #[instrument(level = "trace", skip_all)]
         fn $deserialize<V: Visitor<'de>>(self, _visitor: V) -> Result<V::Value> {
             Err(pinpoint!(
                 SerdeError::UnsupportedRustType(stringify!($type)),
@@ -798,6 +830,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     /// the one that we expect we flag it as unexpected. We can't immediately reject it because it could be that the
     /// caller wrapped the type to deserialize to in a Rust `Option` indicating that the TTLV item is optional. If when
     /// Serde asks us to process the value we will raise an error if we are not asked to process an `Option`.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_struct<V>(self, name: &'static str, fields: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -820,9 +853,12 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             self.tag_path.clone(),
         );
 
+        trace!("deserialize_struct: Visit map");
         let r = visitor.visit_map(descendent_parser); // jumps to impl MapAccess below
+        trace!("deserialize_struct: Visit map complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
+        trace!("deserialize_struct: Skipping from cursor position {} to {}", self.src.position(), struct_cursor.position());
         self.src.set_position(struct_cursor.position());
 
         match r {
@@ -848,6 +884,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     }
 
     /// Deserialize the bytes at the current cursor position to a Rust struct with a single field.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_newtype_struct<V>(self, _name: &'static str, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -882,6 +919,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     /// When deserializing a structure the initial TTL is a sort of header for the structure, with the structure field
     /// values following the header as individual TTLV Items. When deserializing a sequence however the initial TTL is
     /// not separate to but rather belongs to the first item in the sequence.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -904,9 +942,12 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             self.tag_path.clone(),
         );
 
+        trace!("deserialize_seq: Visit sequence");
         let r = visitor.visit_seq(descendent_parser); // jumps to impl SeqAccess below
+        trace!("deserialize_seq: Visit sequence complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
+        trace!("deserialize_seq: Skipping from cursor position {} to {}", self.src.position(), seq_cursor.position());
         self.src.set_position(seq_cursor.position());
 
         r
@@ -933,6 +974,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     ///
     /// Here we see a KMIP BatchItem response structure with an optional field and the use of `#[serde(default)]` to set
     /// the member field to `None` if the corresponding TTLV item is not found while deserializing.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -961,6 +1003,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             // This isn't the item that the caller expected but they indicated that the expected item was optional.
             // Report back that the optional item was not found and rewind the read cursor so that we will visit this
             // TTLV tag again.
+            trace!("deserialize_option: Skipping from cursor position {} to {}", self.src.position(), self.item_start);
             self.src.set_position(self.item_start);
             // Reset the state machine to expect a tag as it's currently expecting a value but should expect a tag.
             self.state.borrow_mut().reset();
@@ -1055,6 +1098,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     ///
     /// The if syntax currently only supports matching against the value of earlier seen enum or string TTLV items that
     /// are looked up by their tag.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_enum<V>(self, name: &'static str, variants: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1095,6 +1139,8 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
 
         // 1: Deserialize according to the TTLV item type:
+        trace!("deserialize_enum: item_identifier: {:?}", self.item_identifier);
+        trace!("deserialize_enum: item_type: {:?}", self.item_type);
         match self.item_type {
             Some(TtlvType::Enumeration) | Some(TtlvType::Integer) => {
                 // 2: Read a TTLV enumeration from the byte stream and announce the read value as the enum variant name.
@@ -1170,7 +1216,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                         );
                     }
 
-                    visitor.visit_enum(&mut *self) // jumps to impl EnumAccess below
+                    visitor.visit_enum(&mut *self) // jumps to impl VariantAccess below
                 }
             }
             None => {
@@ -1180,6 +1226,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_identifier<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1191,6 +1238,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1215,6 +1263,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1243,6 +1292,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1267,6 +1317,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1296,6 +1347,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     }
 
     /// Use #[serde(with = "serde_bytes")] to direct Serde to this deserializer function for type Vec<u8>.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1324,6 +1376,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     ///
     /// When `#[serde(deny_unknown_fields)]` is not used this function is invoked by Serde derive to have us skip over
     /// a TTLV item for which no corresponding Rust struct field exists to deserialize it into.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1433,6 +1486,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     /// i.e. the struct definer has to annotate the struct with the expected
     /// sequence of tags (including those that may optionally appear) in the
     /// order that they should appear if present in the byte source.
+    #[instrument(level = "trace", skip(self, visitor))]
     fn deserialize_tuple_struct<V>(self, name: &'static str, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1467,9 +1521,12 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             self.tag_path.clone(),
         );
 
+        trace!("deserialize_tuple_struct: Visit sequence");
         let r = visitor.visit_seq(descendent_parser); // jumps to impl SeqAccess below
+        trace!("deserialize_tuple_struct: Visit sequence complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
+        trace!("deserialize_tuple_struct: Skipping from cursor position {} to {}", self.src.position(), struct_cursor.position());
         self.src.set_position(struct_cursor.position());
 
         match r {
@@ -1494,6 +1551,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, _visitor))]
     fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1501,6 +1559,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         Err(pinpoint!(SerdeError::UnsupportedRustType("tuple"), self))
     }
 
+    #[instrument(level = "trace", skip(self, _visitor))]
     fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1513,6 +1572,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
 impl<'de: 'c, 'c> MapAccess<'de> for TtlvDeserializer<'de, 'c> {
     type Error = Error;
 
+    #[instrument(level = "trace", skip(self, seed))]
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
     where
         K: serde::de::DeserializeSeed<'de>,
@@ -1525,6 +1585,7 @@ impl<'de: 'c, 'c> MapAccess<'de> for TtlvDeserializer<'de, 'c> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, seed))]
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
     where
         V: serde::de::DeserializeSeed<'de>,
@@ -1538,6 +1599,7 @@ impl<'de: 'c, 'c> MapAccess<'de> for TtlvDeserializer<'de, 'c> {
 impl<'de: 'c, 'c> SeqAccess<'de> for TtlvDeserializer<'de, 'c> {
     type Error = Error;
 
+    #[instrument(level = "trace", skip(self, seed))]
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
     where
         T: serde::de::DeserializeSeed<'de>,
@@ -1545,20 +1607,25 @@ impl<'de: 'c, 'c> SeqAccess<'de> for TtlvDeserializer<'de, 'c> {
         if self.group_item_count > 0 && self.group_item_count == self.group_fields.as_ref().map_or(0, |v| v.len()) {
             // The end of the containing group was reached because the
             // expected number of items was read.
+            trace!("next_element_seed: Group end reached: expected number of items ({}) read.", self.group_item_count);
             Ok(None)
         } else if !self.read_item_key(self.group_homogenous && self.group_item_count == 0)? {
             // The end of the containing group was reached because no more
             // items are available.
+            trace!("next_element_seed: Group end reached: no more items available.");
             Ok(None)
         } else if self.group_homogenous && (self.item_tag != self.group_tag || self.item_type != self.group_type) {
             // The next tag is not part of the sequence.
             // Walk the cursor back before the tag because we didn't consume it.
+            trace!("next_element_seed: Group end reached: next tag is not part of the sequence");
+            trace!("next_element_seed: Skipping from cursor position {} to {}", self.src.position(), self.item_start);
             self.src.set_position(self.item_start);
             // And reset the state machine to expect a tag again
             self.state.borrow_mut().reset();
             Ok(None)
         } else {
             // The tag and type match that of the first item in the sequence, process this element.
+            trace!("next_element_seed: First item found");
             seed.deserialize(self).map(Some) // jumps to deserialize_identifier() above
         }
     }
@@ -1569,6 +1636,7 @@ impl<'de: 'c, 'c> EnumAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
     type Error = Error;
     type Variant = Self;
 
+    #[instrument(level = "trace", skip(self, seed))]
     fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
     where
         V: serde::de::DeserializeSeed<'de>,
@@ -1582,10 +1650,12 @@ impl<'de: 'c, 'c> EnumAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
 impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
     type Error = Error;
 
+    #[instrument(level = "trace", skip(self))]
     fn unit_variant(self) -> Result<()> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip(self, seed))]
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
     where
         T: serde::de::DeserializeSeed<'de>,
@@ -1593,6 +1663,15 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
         seed.deserialize(self)
     }
 
+    /// E.g.
+    /// #[serde(rename = "if 0x42005C==0x0000000A")]
+    /// Get(
+    ///     #[serde(skip_serializing_if = "Option::is_none")] Option<UniqueIdentifier>,
+    ///     #[serde(skip_serializing_if = "Option::is_none")] Option<KeyFormatType>,
+    ///     #[serde(skip_serializing_if = "Option::is_none")] Option<KeyCompressionType>,
+    ///     #[serde(skip_serializing_if = "Option::is_none")] Option<KeyWrappingSpecification>,
+    /// ),
+    #[instrument(level = "trace", skip(self, visitor))]
     fn tuple_variant<V>(self, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1605,16 +1684,24 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
         let seq_start = self.pos();
         let seq_end = seq_start + (seq_len as u64);
 
-        let loc = self.location(); // See the note above about working around greedy closure capturing
-        let seq_tag = TtlvDeserializer::read_tag(&mut self.src, Some(&mut self.state.borrow_mut()))
-            .map_err(|err| pinpoint!(err, loc))?;
-        self.item_tag = Some(seq_tag);
+        // trace!("Updating self.tag (currently {:?}) and self.type (currently {:?})", self.item_tag, self.item_type);
 
-        let loc = self.location(); // See the note above about working around greedy closure capturing
-        let seq_type = TtlvDeserializer::read_type(&mut self.src, Some(&mut self.state.borrow_mut()))
-            .map_err(|err| pinpoint!(err, loc))?;
-        self.item_type = Some(seq_type);
+        // let loc = self.location(); // See the note above about working around greedy closure capturing
+        // let seq_tag = TtlvDeserializer::read_tag(&mut self.src, Some(&mut self.state.borrow_mut()))
+        //     .map_err(|err| pinpoint!(err, loc))?;
+        // self.item_tag = Some(seq_tag);
 
+        // let loc = self.location(); // See the note above about working around greedy closure capturing
+        // let seq_type = TtlvDeserializer::read_type(&mut self.src, Some(&mut self.state.borrow_mut()))
+        //     .map_err(|err| pinpoint!(err, loc))?;
+        // self.item_type = Some(seq_type);
+
+        let seq_tag = self
+            .item_tag
+            .ok_or(Error::pinpoint(MalformedTtlvError::UnexpectedState, self.location()))?;
+        let seq_type = self
+            .item_type
+            .ok_or(Error::pinpoint(MalformedTtlvError::UnexpectedState, self.location()))?;
         let mut seq_cursor = self.src.clone();
 
         let descendent_parser = TtlvDeserializer::from_cursor(
@@ -1629,14 +1716,18 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
             self.tag_path.clone(),
         );
 
+        trace!("tuple_variant: Visit sequence");
         let r = visitor.visit_seq(descendent_parser); // jumps to impl SeqAccess below
+        trace!("tuple_variant: Visit sequence complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
+        trace!("tuple_variant: Skipping from cursor position {} to {}", self.src.position(), seq_cursor.position());
         self.src.set_position(seq_cursor.position());
 
         r
     }
 
+    #[instrument(level = "trace", skip(self, _visitor))]
     fn struct_variant<V>(self, _fields: &'static [&'static str], _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
@@ -1647,6 +1738,7 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
 
 //----
 
+#[derive(Debug)]
 enum FieldNames {
     SerdeNames(&'static [&'static str]),
     TagIds(Vec<String>),

@@ -6,6 +6,8 @@ use std::io::Cursor;
 use std::ops::Deref;
 use std::str::FromStr;
 
+use hex::ToHex;
+
 use crate::de::TtlvDeserializer;
 use crate::error::ErrorKind;
 use crate::types::{
@@ -18,6 +20,7 @@ use crate::types::{
 pub struct PrettyPrinter {
     tag_prefix: String,
     tag_map: HashMap<TtlvTag, &'static str>,
+    enum_map: HashMap<(TtlvTag, u32), &'static str>,
 }
 
 impl PrettyPrinter {
@@ -40,6 +43,15 @@ impl PrettyPrinter {
     /// looking up the human friendly name associated with the tag in the given map.
     pub fn with_tag_map(mut self, tag_map: HashMap<TtlvTag, &'static str>) -> Self {
         self.tag_map = tag_map;
+        self
+    }
+
+    /// Set the pretty printer's enum map.
+    ///
+    /// The enum map is used to render a meaningful name for numeric enum values in pretty printed output by
+    /// looking up the human friendly name associated with the enum for the current tag in the given map.
+    pub fn with_enum_map(mut self, enum_map: HashMap<(TtlvTag, u32), &'static str>) -> Self {
+        self.enum_map = enum_map;
         self
     }
 
@@ -126,6 +138,7 @@ impl PrettyPrinter {
             diagnostic_report: bool,
             strip_tag_prefix: &str,
             tag_map: &HashMap<TtlvTag, &'static str>,
+            enum_map: &HashMap<(TtlvTag, u32), &'static str>,
         ) -> std::result::Result<(String, Option<u64>), ErrorKind> {
             let mut sm = TtlvStateMachine::new(TtlvStateMachineMode::Deserializing);
             let tag = TtlvDeserializer::read_tag(&mut cursor, Some(&mut sm))?;
@@ -140,9 +153,9 @@ impl PrettyPrinter {
                     TtlvType::Integer     => { format!(" {data:#08X} ({data})", data = TtlvInteger::read(cursor)?.deref()) }
                     TtlvType::LongInteger => { format!(" {data:#08X} ({data})", data = TtlvLongInteger::read(cursor)?.deref()) }
                     TtlvType::BigInteger  => { format!(" {data}", data = hex::encode_upper(TtlvBigInteger::read(cursor)?.deref())) }
-                    TtlvType::Enumeration => { format!(" {data:#08X} ({data})", data = TtlvEnumeration::read(cursor)?.deref()) }
+                    TtlvType::Enumeration => { let data = TtlvEnumeration::read(cursor)?; format!(" {:#08X} ({} = {})", *data, *data, enum_map.get(&(tag, *data)).unwrap_or(&"??")) }
                     TtlvType::Boolean     => { format!(" {data}", data = TtlvBoolean::read(cursor)?.deref()) }
-                    TtlvType::TextString  => { format!(" {data}", data = TtlvTextString::read(cursor)?.deref()) }
+                    TtlvType::TextString  => { let data = TtlvTextString::read(cursor)?; format!(" {} (0x{})", data.deref(), data.encode_hex_upper::<String>()) }
                     TtlvType::ByteString  => { format!(" {data}", data = hex::encode_upper(TtlvByteString::read(cursor)?.deref())) }
                     TtlvType::DateTime    => { format!(" {data:#08X}", data = TtlvDateTime::read(cursor)?.deref()) }
                 };
@@ -212,8 +225,14 @@ impl PrettyPrinter {
 
             // Deserialize the next TTLV in the input to a human readable string
             let pos = cursor.position();
-            let res = deserialize_ttlv_to_string(&mut cursor, diagnostic_report, &self.tag_prefix, &self.tag_map)
-                .map_err(|err| pinpoint!(err, pos));
+            let res = deserialize_ttlv_to_string(
+                &mut cursor,
+                diagnostic_report,
+                &self.tag_prefix,
+                &self.tag_map,
+                &self.enum_map,
+            )
+            .map_err(|err| pinpoint!(err, pos));
 
             match res {
                 Ok((ttlv_string, possible_new_struct_len)) => {

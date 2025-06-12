@@ -388,6 +388,9 @@ pub enum MalformedTtlvError {
     /// bytes of a TTLV structure once its length was known and this was detected during serialization or later during
     /// deserialization.
     UnknownStructureLength,
+
+    /// The parser isn't in the state it expected to be in.
+    UnexpectedState,
 }
 
 impl MalformedTtlvError {

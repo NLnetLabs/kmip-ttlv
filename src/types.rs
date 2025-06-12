@@ -780,6 +780,7 @@ pub enum TtlvStateMachineMode {
 }
 
 /// A state machine for enforcing TTLV field order rules.
+#[derive(Debug)]
 pub struct TtlvStateMachine {
     mode: TtlvStateMachineMode,
     expected_next_field_type: FieldType,
