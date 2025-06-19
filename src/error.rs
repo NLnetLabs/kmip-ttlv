@@ -54,7 +54,7 @@ impl Display for Error {
                 f.write_fmt(format_args!("Response size {} exceeds the configured limit", size))
             }
             ErrorKind::MalformedTtlv(error) => {
-                f.write_fmt(format_args!("Malformed TTLV: {:?} (at {})", error, self.location))
+                f.write_fmt(format_args!("Malformed TTLV: {} (at {})", error, self.location))
             }
             ErrorKind::SerdeError(error, None) => {
                 f.write_fmt(format_args!("Serde error : {} (at {})", error, self.location))
@@ -174,6 +174,22 @@ impl From<MalformedTtlvError> for ErrorKind {
 impl From<SerdeError> for ErrorKind {
     fn from(err: SerdeError) -> Self {
         Self::SerdeError(err, None)
+    }
+}
+
+impl Display for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorKind::IoError(err) => write!(f, "An I/O error occured: {err}"),
+            ErrorKind::ResponseSizeExceedsLimit(v) => write!(f, "The response size {v} bytes exceeds the limit"),
+            ErrorKind::MalformedTtlv(err) => write!(f, "The KMIP TTLV data is malformed: {err}"),
+            ErrorKind::SerdeError(err, None) => write!(f, "The KMIP TTLV data could not be (de)serialized: {err}"),
+            ErrorKind::SerdeError(err, Some(context)) => write!(
+                f,
+                "The KMIP TTLV data could not be (de)serialized: {err} [context: {}]",
+                hex::encode_upper(context)
+            ),
+        }
     }
 }
 
@@ -421,6 +437,46 @@ impl MalformedTtlvError {
     }
 }
 
+impl Display for MalformedTtlvError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MalformedTtlvError::InvalidType(v) => write!(f, "{v} is not a known KMIP type code"),
+            MalformedTtlvError::InvalidLength {
+                expected,
+                actual,
+                r#type,
+            } => write!(
+                f,
+                "The value for KMIP type {} should be {expected} bytes but found {actual} bytes",
+                r#type
+            ),
+            MalformedTtlvError::InvalidValue { r#type } => write!(f, "Invalid value for KMIP type {}", r#type),
+            MalformedTtlvError::Overflow { .. } => write!(f, "Too many KMIP values for this KMIP structure"),
+            MalformedTtlvError::UnexpectedTtlvField {
+                expected,
+                actual,
+                context,
+            } => {
+                if let Some(context) = context {
+                    write!(
+                        f,
+                        "Expected KMIP field {expected} but found {actual} [{}]",
+                        hex::encode_upper(context)
+                    )
+                } else {
+                    write!(f, "Expected KMIP field {expected} but found {actual}")
+                }
+            }
+            MalformedTtlvError::UnexpectedType { expected, actual } => {
+                write!(f, "Expected KMIP type {expected} but found {actual}")
+            }
+            MalformedTtlvError::UnsupportedType(v) => write!(f, "{v} is not a supported KMIP type code"),
+            MalformedTtlvError::UnknownStructureLength => write!(f, "Unknown structure length"),
+            MalformedTtlvError::UnexpectedState => write!(f, "Unexpected state"),
+        }
+    }
+}
+
 // --- SerdeError -----------------------------------------------------------------------------------------------------
 
 /// Errors while (de)serializing from/to Rust data structures.
@@ -462,4 +518,19 @@ pub enum SerdeError {
 
     /// The TTLV type of the value being deserialized is not supported yet by the deserializer.
     UnsupportedRustType(&'static str),
+}
+
+impl Display for SerdeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SerdeError::InvalidVariant(v) => write!(f, "Enum variant name '{v}' is neither a hexadecimal string value nor valid matcher syntax"),
+            SerdeError::InvalidVariantMatcherSyntax(v) => write!(f, "Enum variant name '{v}' is not valid matcher syntax"),
+            SerdeError::InvalidTag(v) => write!(f, "The Serde name '{v}' assigned to a Rust data type is not a valid TTLV six character hexadecimal tag value"),
+            SerdeError::MissingIdentifier => write!(f, "None of the Serde named fields in the Rust struct being deserialized into matches the TTLV tag value being deserialized."),
+            SerdeError::Other(v) => write!(f, "Serde encountered an error: {v}"),
+            SerdeError::UnexpectedTag { expected, actual } => write!(f, "Expected KMIP tag {expected} but found {actual}"),
+            SerdeError::UnexpectedType { expected, actual } => write!(f, "Expected KMIP type {expected} but found {actual}"),
+            SerdeError::UnsupportedRustType(v) => write!(f, "The deserializer does not yet support deserializing into Rust type '{v}"),
+        }
+    }
 }
