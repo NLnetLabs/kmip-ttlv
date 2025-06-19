@@ -61,7 +61,7 @@ use crate::{
         TtlvTextString, TtlvType,
     },
 };
-use tracing::{instrument, trace};
+use tracing::{debug, instrument, trace};
 
 // --- Public interface ------------------------------------------------------------------------------------------------
 
@@ -633,6 +633,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         }
 
         if group_type != TtlvType::Structure {
+            debug!("Expected KMIP structure but found {group_type}.");
             return Err(pinpoint!(
                 MalformedTtlvError::UnexpectedType {
                     expected: TtlvType::Structure,
@@ -1151,8 +1152,8 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         }
 
         // 1: Deserialize according to the TTLV item type:
-        trace!("deserialize_enum: item_identifier: {:?}", self.item_identifier);
-        trace!("deserialize_enum: item_type: {:?}", self.item_type);
+        trace!("deserialize_enum: TTLV item_identifier: {:?}", self.item_identifier);
+        trace!("deserialize_enum: TTLV item_type: {:?}", self.item_type);
         match self.item_type {
             Some(TtlvType::Enumeration) | Some(TtlvType::Integer) => {
                 // 2: Read a TTLV enumeration from the byte stream and announce the read value as the enum variant name.
@@ -1266,6 +1267,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                 visitor.visit_i32(*v)
             }
             Some(other_type) => {
+                debug!("Expected KMIP integer but found {other_type}.");
                 let error = SerdeError::UnexpectedType {
                     expected: TtlvType::Integer,
                     actual: other_type,
@@ -1295,6 +1297,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                 visitor.visit_i64(*v)
             }
             Some(other_type) => {
+                debug!("Expected KMIP long integer but found {other_type}.");
                 let error = SerdeError::UnexpectedType {
                     expected: TtlvType::LongInteger,
                     actual: other_type,
@@ -1320,6 +1323,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                 visitor.visit_bool(*v)
             }
             Some(other_type) => {
+                debug!("Expected KMIP boolean but found {other_type}.");
                 let error = SerdeError::UnexpectedType {
                     expected: TtlvType::Boolean,
                     actual: other_type,
@@ -1349,6 +1353,10 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                 visitor.visit_string(str.0)
             }
             Some(other_type) => {
+                debug!(
+                    "Expected KMIP text string but found {other_type} (at tag {:?}).",
+                    self.item_tag
+                );
                 let error = SerdeError::UnexpectedType {
                     expected: TtlvType::TextString,
                     actual: other_type,
@@ -1375,6 +1383,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                 visitor.visit_byte_buf(v.0)
             }
             Some(other_type) => {
+                debug!("Expected KMIP byte string but found {other_type}.");
                 let error = SerdeError::UnexpectedType {
                     expected: TtlvType::ByteString,
                     actual: other_type,

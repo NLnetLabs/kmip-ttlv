@@ -49,6 +49,8 @@ use std::{
     str::FromStr,
 };
 
+use tracing::debug;
+
 // --- FieldType ------------------------------------------------------------------------------------------------------
 
 /// The type of TTLV header or value field represented by some TTLV bytes.
@@ -823,6 +825,7 @@ impl TtlvStateMachine {
 
             // Error, don't permit invalid things like TTVL etc.
             (_, expected, actual) => {
+                debug!("Invalid state machine transition: expected {expected} but got {actual}");
                 return Err(Error::UnexpectedTtlvField { expected, actual });
             }
         };

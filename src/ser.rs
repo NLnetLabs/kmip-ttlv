@@ -15,7 +15,7 @@ use crate::{
         TtlvStateMachineMode, TtlvTag, TtlvType,
     },
 };
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 // --- Public interface ------------------------------------------------------------------------------------------------
 
@@ -106,6 +106,7 @@ impl TtlvSerializer {
                 let loc = self.location();
                 self.state.ignore_next_tag().map_err(|err| pinpoint!(err, loc))?;
             }
+            debug!("Writing tag {item_tag}");
             item_tag.write(&mut self.dst).map_err(|err| pinpoint!(err, self))?;
         }
         Ok(())
