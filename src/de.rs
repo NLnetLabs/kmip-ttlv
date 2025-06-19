@@ -858,7 +858,11 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         trace!("deserialize_struct: Visit map complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
-        trace!("deserialize_struct: Skipping from cursor position {} to {}", self.src.position(), struct_cursor.position());
+        trace!(
+            "deserialize_struct: Skipping from cursor position {} to {}",
+            self.src.position(),
+            struct_cursor.position()
+        );
         self.src.set_position(struct_cursor.position());
 
         match r {
@@ -908,7 +912,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     ///
     /// _(the inline comments quote the relevant parts of the KMIP 1.0 spec)_
     ///
-    /// The KMIP 1.0 spec does not define the terminating conditions for a field that "MAY be repeated. This
+    /// The KMIP 1.0 spec does not define the terminating conditions for a field that "MAY be repeated". This
     /// deserializer assumes that the sequence is limited by the L_ength of the TTLV item that contains it and that to
     /// be considered part of a "MAY be repeated" sequence the TTLV item must have the same tag and type as the previous
     /// items. Otherwise two adjacent "MAY be repeated" sequences within the same parent TTLV "Structure" would not have
@@ -947,7 +951,11 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         trace!("deserialize_seq: Visit sequence complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
-        trace!("deserialize_seq: Skipping from cursor position {} to {}", self.src.position(), seq_cursor.position());
+        trace!(
+            "deserialize_seq: Skipping from cursor position {} to {}",
+            self.src.position(),
+            seq_cursor.position()
+        );
         self.src.set_position(seq_cursor.position());
 
         r
@@ -1003,7 +1011,11 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             // This isn't the item that the caller expected but they indicated that the expected item was optional.
             // Report back that the optional item was not found and rewind the read cursor so that we will visit this
             // TTLV tag again.
-            trace!("deserialize_option: Skipping from cursor position {} to {}", self.src.position(), self.item_start);
+            trace!(
+                "deserialize_option: Skipping from cursor position {} to {}",
+                self.src.position(),
+                self.item_start
+            );
             self.src.set_position(self.item_start);
             // Reset the state machine to expect a tag as it's currently expecting a value but should expect a tag.
             self.state.borrow_mut().reset();
@@ -1526,7 +1538,11 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         trace!("deserialize_tuple_struct: Visit sequence complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
-        trace!("deserialize_tuple_struct: Skipping from cursor position {} to {}", self.src.position(), struct_cursor.position());
+        trace!(
+            "deserialize_tuple_struct: Skipping from cursor position {} to {}",
+            self.src.position(),
+            struct_cursor.position()
+        );
         self.src.set_position(struct_cursor.position());
 
         match r {
@@ -1607,7 +1623,10 @@ impl<'de: 'c, 'c> SeqAccess<'de> for TtlvDeserializer<'de, 'c> {
         if self.group_item_count > 0 && self.group_item_count == self.group_fields.as_ref().map_or(0, |v| v.len()) {
             // The end of the containing group was reached because the
             // expected number of items was read.
-            trace!("next_element_seed: Group end reached: expected number of items ({}) read.", self.group_item_count);
+            trace!(
+                "next_element_seed: Group end reached: expected number of items ({}) read.",
+                self.group_item_count
+            );
             Ok(None)
         } else if !self.read_item_key(self.group_homogenous && self.group_item_count == 0)? {
             // The end of the containing group was reached because no more
@@ -1618,7 +1637,11 @@ impl<'de: 'c, 'c> SeqAccess<'de> for TtlvDeserializer<'de, 'c> {
             // The next tag is not part of the sequence.
             // Walk the cursor back before the tag because we didn't consume it.
             trace!("next_element_seed: Group end reached: next tag is not part of the sequence");
-            trace!("next_element_seed: Skipping from cursor position {} to {}", self.src.position(), self.item_start);
+            trace!(
+                "next_element_seed: Skipping from cursor position {} to {}",
+                self.src.position(),
+                self.item_start
+            );
             self.src.set_position(self.item_start);
             // And reset the state machine to expect a tag again
             self.state.borrow_mut().reset();
@@ -1721,7 +1744,11 @@ impl<'de: 'c, 'c> VariantAccess<'de> for &mut TtlvDeserializer<'de, 'c> {
         trace!("tuple_variant: Visit sequence complete");
 
         // The descendant parser cursor advanced but ours did not. Skip the tag that we just read.
-        trace!("tuple_variant: Skipping from cursor position {} to {}", self.src.position(), seq_cursor.position());
+        trace!(
+            "tuple_variant: Skipping from cursor position {} to {}",
+            self.src.position(),
+            seq_cursor.position()
+        );
         self.src.set_position(seq_cursor.position());
 
         r
