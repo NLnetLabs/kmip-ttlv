@@ -58,9 +58,9 @@ use tracing::debug;
 /// This field is also used by the [TtlvStateMachine] to represent the next expected field type or types.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FieldType {
-    Tag,
-    Type,
-    Length,
+    Tag(Option<TtlvTag>),
+    Type(Option<TtlvType>),
+    Length(Option<TtlvLength>),
     Value,
     LengthAndValue,        // used when deserializing
     TypeAndLengthAndValue, // used when serializing
@@ -68,16 +68,16 @@ pub enum FieldType {
 
 impl Default for FieldType {
     fn default() -> Self {
-        Self::Tag
+        Self::Tag(None)
     }
 }
 
 impl Display for FieldType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FieldType::Tag => f.write_str("Tag"),
-            FieldType::Type => f.write_str("Type"),
-            FieldType::Length => f.write_str("Length"),
+            FieldType::Tag(v) => write!(f, "Tag({v:?})"),
+            FieldType::Type(v) => write!(f, "Type({v:?})"),
+            FieldType::Length(v) => write!(f, "Length({v:?})"),
             FieldType::Value => f.write_str("Value"),
             FieldType::LengthAndValue => f.write_str("LengthAndValue"),
             FieldType::TypeAndLengthAndValue => f.write_str("TypeAndLengthAndValue"),
@@ -268,7 +268,7 @@ impl From<&[u8; 3]> for TtlvTag {
 /// According to the [KMIP specification 1.0 section 9.1.1.2 Item Type](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_toc8562):
 /// > _An Item Type is a byte containing a coded value that indicates the data type of the data object._
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TtlvType {
     Structure = 0x01,
     Integer = 0x02,
@@ -817,24 +817,24 @@ impl TtlvStateMachine {
 
         let next_expected_next_field_type = match (self.mode, self.expected_next_field_type, next_field_type) {
             // First, the normal cases: expect a certain field type to be written next and that is what is indicated
-            (_, FieldType::Tag, FieldType::Tag) => FieldType::Type,
-            (_, FieldType::Type, FieldType::Type) => FieldType::Length,
-            (Mode::Serializing, FieldType::Type, FieldType::TypeAndLengthAndValue) => FieldType::Tag,
-            (_, FieldType::Length, FieldType::Length) => FieldType::Value,
-            (Mode::Deserializing, FieldType::Length, FieldType::LengthAndValue) => FieldType::Tag,
-            (_, FieldType::Value, FieldType::Value) => FieldType::Tag,
+            (_, FieldType::Tag(_), FieldType::Tag(_)) => FieldType::Type(None),
+            (_, FieldType::Type(_), FieldType::Type(_)) => FieldType::Length(None),
+            (Mode::Serializing, FieldType::Type(_), FieldType::TypeAndLengthAndValue) => FieldType::Tag(None),
+            (_, FieldType::Length(_), FieldType::Length(_)) => FieldType::Value,
+            (Mode::Deserializing, FieldType::Length(_), FieldType::LengthAndValue) => FieldType::Tag(None),
+            (_, FieldType::Value, FieldType::Value) => FieldType::Tag(None),
 
             // In the leaf case a V always follows TTL, but higher in the TTLV structure hierarchy the first item in
             // a structure can be another TTLV item (i.e. we see a tag being written instead of a value)
-            (_, FieldType::Value, FieldType::Tag) => FieldType::Type,
+            (_, FieldType::Value, FieldType::Tag(_)) => FieldType::Type(None),
 
             // Special case: we've been explicitly asked after writing a tag to ignore a subsequent attempt to write
             // another tag. Normally attempting to write TT would be an error, but in this case the second T should be
             // silently ignored. This supports use cases like the KMIP Attribute Value which is of the form XTLV where
             // X is constant tag value and not the normal tag associated with the item being serialized.
-            (Mode::Serializing, FieldType::Type, FieldType::Tag) if self.ignore_next_tag => {
+            (Mode::Serializing, FieldType::Type(_), FieldType::Tag(_)) if self.ignore_next_tag => {
                 self.ignore_next_tag = false;
-                FieldType::Type
+                FieldType::Type(None)
             }
 
             // Error, don't permit invalid things like TTVL etc.

@@ -406,7 +406,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         R: Read,
     {
         if let Some(state) = state {
-            state.advance(FieldType::Tag)?;
+            state.advance(FieldType::Tag(None))?;
         }
         let v = TtlvTag::read(&mut src)?;
         trace!("Read TTLV tag: {v}");
@@ -436,7 +436,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         R: Read,
     {
         if let Some(state) = state {
-            state.advance(FieldType::Type)?;
+            state.advance(FieldType::Type(None))?;
         }
         let v = TtlvType::read(&mut src)?;
         trace!("Read TTLV type: {v}");
@@ -463,7 +463,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         R: Read,
     {
         if let Some(state) = state {
-            state.advance(FieldType::Length)?;
+            state.advance(FieldType::Length(None))?;
         }
 
         let v = TtlvLength::read(&mut src).map(|len| *len)?;

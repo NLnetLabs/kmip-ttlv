@@ -101,7 +101,7 @@ impl TtlvSerializer {
     /// by 3 bytes.
     #[instrument(level = "trace", skip(self))]
     fn write_tag(&mut self, item_tag: TtlvTag, set_ignore_next_tag: bool) -> Result<()> {
-        if self.advance_state_machine(FieldType::Tag)? {
+        if self.advance_state_machine(FieldType::Tag(Some(item_tag)))? {
             if set_ignore_next_tag {
                 let loc = self.location();
                 self.state.ignore_next_tag().map_err(|err| pinpoint!(err, loc))?;
@@ -116,7 +116,7 @@ impl TtlvSerializer {
     /// 1 byte.
     #[instrument(level = "trace", skip(self))]
     fn write_type(&mut self, item_type: TtlvType) -> Result<()> {
-        if self.advance_state_machine(FieldType::Type)? {
+        if self.advance_state_machine(FieldType::Type(Some(item_type)))? {
             item_type.write(&mut self.dst).map_err(|err| pinpoint!(err, self))?;
         }
         Ok(())
@@ -127,7 +127,7 @@ impl TtlvSerializer {
     /// fn rewite_len() knows where to come back to.
     #[instrument(level = "trace", skip(self))]
     fn write_zero_len(&mut self) -> Result<()> {
-        if self.advance_state_machine(FieldType::Length)? {
+        if self.advance_state_machine(FieldType::Length(Some(TtlvLength::new(0))))? {
             TtlvLength::new(0)
                 .write(&mut self.dst)
                 .map_err(|err| pinpoint!(err, self.location()))?;
