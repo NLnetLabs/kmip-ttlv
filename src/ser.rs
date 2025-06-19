@@ -374,7 +374,7 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         // tagged value whose tag should be overriden. See serialize_newtype_variant().
         let name = name.strip_prefix("Override:").unwrap_or(name);
 
-        if name != "Untagged" {
+        if !name.starts_with("Untagged") {
             let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
             self.write_tag(item_tag, false)?;
             self.write_type(TtlvType::Structure)?;
@@ -609,7 +609,7 @@ impl ser::SerializeStruct for &mut TtlvSerializer {
     where
         T: Serialize + ?Sized,
     {
-        if key != "Untagged" {
+        if !key.starts_with("Untagged") {
             self.write_tag(TtlvTag::from_str(key).unwrap(), true)?;
         }
         value.serialize(&mut **self)
