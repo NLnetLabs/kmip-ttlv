@@ -20,11 +20,11 @@ pub struct Error {
 }
 
 impl Error {
-    pub(crate) fn new(kind: ErrorKind, location: ErrorLocation) -> Self {
+    pub fn new(kind: ErrorKind, location: ErrorLocation) -> Self {
         Self { kind, location }
     }
 
-    pub(crate) fn into_inner(self) -> (ErrorKind, ErrorLocation) {
+    pub fn into_inner(self) -> (ErrorKind, ErrorLocation) {
         (self.kind, self.location)
     }
 
