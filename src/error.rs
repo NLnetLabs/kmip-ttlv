@@ -56,9 +56,15 @@ impl Display for Error {
             ErrorKind::MalformedTtlv(error) => {
                 f.write_fmt(format_args!("Malformed TTLV: {:?} (at {})", error, self.location))
             }
-            ErrorKind::SerdeError(error) => {
-                f.write_fmt(format_args!("Serde error : {:?} (at {})", error, self.location))
+            ErrorKind::SerdeError(error, None) => {
+                f.write_fmt(format_args!("Serde error : {} (at {})", error, self.location))
             }
+            ErrorKind::SerdeError(error, Some(context)) => f.write_fmt(format_args!(
+                "Serde error : {:?} (at {}) [context: {}]",
+                error,
+                self.location,
+                hex::encode_upper(context)
+            )),
         }
     }
 }
@@ -116,7 +122,7 @@ pub enum ErrorKind {
     IoError(std::io::Error),
     ResponseSizeExceedsLimit(usize),
     MalformedTtlv(MalformedTtlvError),
-    SerdeError(SerdeError),
+    SerdeError(SerdeError, Option<Vec<u8>>),
 }
 
 impl From<std::io::Error> for ErrorKind {
@@ -129,10 +135,16 @@ impl From<types::Error> for ErrorKind {
     fn from(err: types::Error) -> Self {
         match err {
             types::Error::IoError(e) => Self::IoError(e),
-            types::Error::UnexpectedTtlvField { expected, actual } => {
-                Self::MalformedTtlv(MalformedTtlvError::UnexpectedTtlvField { expected, actual })
-            }
-            types::Error::InvalidTtlvTag(v) => Self::SerdeError(SerdeError::InvalidTag(v)),
+            types::Error::UnexpectedTtlvField {
+                expected,
+                actual,
+                context,
+            } => Self::MalformedTtlv(MalformedTtlvError::UnexpectedTtlvField {
+                expected,
+                actual,
+                context,
+            }),
+            types::Error::InvalidTtlvTag(v) => Self::SerdeError(SerdeError::InvalidTag(v), None),
             types::Error::UnsupportedTtlvType(v) => Self::MalformedTtlv(MalformedTtlvError::UnsupportedType(v)),
             types::Error::InvalidTtlvType(v) => Self::MalformedTtlv(MalformedTtlvError::InvalidType(v)),
             types::Error::InvalidTtlvValueLength {
@@ -145,9 +157,10 @@ impl From<types::Error> for ErrorKind {
                 r#type,
             }),
             types::Error::InvalidTtlvValue(r#type) => Self::MalformedTtlv(MalformedTtlvError::InvalidValue { r#type }),
-            types::Error::InvalidStateMachineOperation => Self::SerdeError(SerdeError::Other(
-                "Internal error: invalid state machine operaiton".into(),
-            )),
+            types::Error::InvalidStateMachineOperation => Self::SerdeError(
+                SerdeError::Other("Internal error: invalid state machine operation".into()),
+                None,
+            ),
         }
     }
 }
@@ -160,7 +173,7 @@ impl From<MalformedTtlvError> for ErrorKind {
 
 impl From<SerdeError> for ErrorKind {
     fn from(err: SerdeError) -> Self {
-        Self::SerdeError(err)
+        Self::SerdeError(err, None)
     }
 }
 
@@ -372,7 +385,11 @@ pub enum MalformedTtlvError {
     Overflow { field_end: ByteOffset },
 
     /// The TTLV field being read/written is out of sequence (e.g. TLVV, VLTL, etc.).
-    UnexpectedTtlvField { expected: FieldType, actual: FieldType },
+    UnexpectedTtlvField {
+        expected: FieldType,
+        actual: FieldType,
+        context: Option<Vec<u8>>,
+    },
 
     /// The TTLV type being read/written is not correct at this location.
     ///

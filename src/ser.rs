@@ -170,7 +170,9 @@ impl TtlvSerializer {
 
     #[instrument(level = "trace", skip(self))]
     fn advance_state_machine(&mut self, next_state: FieldType) -> Result<bool> {
-        self.state.advance(next_state).map_err(|err| pinpoint!(err, self))
+        self.state
+            .advance(next_state)
+            .map_err(|err| pinpoint!(err.with_context(self.dst.clone()), self))
     }
 }
 

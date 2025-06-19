@@ -240,7 +240,7 @@ fn test_incorrect_serde_configuration_mismatched_types() {
             assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::UnexpectedType {
                 expected: $expected_ttlv_type,
                 actual,
-            }) if *actual == $actual_tlv_value.ttlv_type());
+            }, ..) if *actual == $actual_tlv_value.ttlv_type());
             assert_eq!(err.location().offset(), Some(ByteOffset(12)));
             assert_eq!(err.location().parent_tags(), &[root_tag()]);
             assert_eq!(err.location().tag(), Some(inner_tag()));
@@ -303,7 +303,7 @@ fn test_incorrect_serde_configuration_mismatched_types() {
     // Note: This test is brittle as it depends on the exact error message text produced by Serde Derive.
     let err =
         from_slice::<FlexibleRootType<DummyEnum>>(&ttlv_bytes_with_custom_tlv(&some_out_of_range_enum)).unwrap_err();
-    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::Other(msg)) if msg == "unknown variant `0x00000002`, expected `0x00000001`");
+    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::Other(msg), ..) if msg == "unknown variant `0x00000002`, expected `0x00000001`");
     assert_eq!(err.location().offset(), Some(ByteOffset(24)));
 
     // BAD: attempt to deserialize into an enum instead of a struct. Valid TTLV always starts with a Structure so
@@ -322,7 +322,7 @@ fn test_incorrect_serde_configuration_invalid_tags() {
     macro_rules! test_invalid_tag {
         ($rust_type:ty, $actual_tlv_value:expr) => {
             let err = from_slice::<$rust_type>(&ttlv_bytes_with_custom_tlv(&$actual_tlv_value)).unwrap_err();
-            assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::InvalidTag(_)));
+            assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::InvalidTag(_), ..));
             assert_eq!(err.location().offset(), Some(ByteOffset(0)));
             assert_eq!(err.location().parent_tags(), &[]);
             assert_eq!(err.location().tag(), None);
@@ -347,7 +347,7 @@ fn test_incorrect_serde_configuration_invalid_tags() {
     }
 
     let err = from_slice::<FlexibleRootType<DummyEnum>>(&ttlv_bytes_with_custom_tlv(&TtlvEnumeration(1))).unwrap_err();
-    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::InvalidVariantMatcherSyntax(msg)) if msg == "if malformed variant matcher syntax");
+    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::InvalidVariantMatcherSyntax(msg), ..) if msg == "if malformed variant matcher syntax");
     assert_eq!(err.location().offset(), Some(ByteOffset(12)));
     assert_eq!(err.location().parent_tags(), &[root_tag()]);
     assert_eq!(err.location().tag(), Some(inner_tag()));
@@ -371,7 +371,7 @@ fn test_mismatched_serde_configuration() {
         a: i32, // field b is missing
     }
     let err = from_slice::<MissingFieldRoot>(&ttlv_bytes()).unwrap_err();
-    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::Other(msg)) if msg == "unknown field `0xCCCCCC`, expected `0xBBBBBB`");
+    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::Other(msg), ..) if msg == "unknown field `0xCCCCCC`, expected `0xBBBBBB`");
     assert_eq!(err.location().offset(), Some(ByteOffset(28)));
     assert_eq!(err.location().parent_tags(), &[root_tag]);
     assert_eq!(err.location().tag(), Some(root_tag)); // TODO: Shouldn't really be root_tag here as then parent_tags is wrong
@@ -400,7 +400,7 @@ fn test_mismatched_serde_configuration() {
         c: i32,
     }
     let err = from_slice::<ExtraFieldRoot>(&ttlv_bytes()).unwrap_err();
-    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::Other(msg)) if msg == "missing field `0xDDDDDD`");
+    assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::Other(msg), ..) if msg == "missing field `0xDDDDDD`");
     assert_eq!(err.location().offset(), Some(ByteOffset(40)));
     assert_eq!(err.location().parent_tags(), &[root_tag]);
     assert_eq!(err.location().tag(), Some(root_tag)); // TODO: Shouldn't really be root_tag here as then parent_tags is wrong

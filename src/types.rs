@@ -144,6 +144,7 @@ pub enum Error {
     UnexpectedTtlvField {
         expected: FieldType,
         actual: FieldType,
+        context: Option<Vec<u8>>,
     },
     UnsupportedTtlvType(u8),
     InvalidTtlvType(u8),
@@ -154,6 +155,19 @@ pub enum Error {
     },
     InvalidTtlvValue(TtlvType),
     InvalidStateMachineOperation,
+}
+
+impl Error {
+    pub fn with_context(self, context: Vec<u8>) -> Self {
+        match self {
+            Error::UnexpectedTtlvField { expected, actual, .. } => Error::UnexpectedTtlvField {
+                expected,
+                actual,
+                context: Some(context),
+            },
+            v => v,
+        }
+    }
 }
 
 impl From<std::io::Error> for Error {
@@ -826,7 +840,11 @@ impl TtlvStateMachine {
             // Error, don't permit invalid things like TTVL etc.
             (_, expected, actual) => {
                 debug!("Invalid state machine transition: expected {expected} but got {actual}");
-                return Err(Error::UnexpectedTtlvField { expected, actual });
+                return Err(Error::UnexpectedTtlvField {
+                    expected,
+                    actual,
+                    context: None,
+                });
             }
         };
 
