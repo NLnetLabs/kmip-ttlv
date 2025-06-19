@@ -836,6 +836,11 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
     where
         V: Visitor<'de>,
     {
+        // Ignore any command prefix on the name such as "Transparent:0x4200nn".
+        let name = match name.split_once(':') {
+            Some((_, name)) => name,
+            None => name,
+        };
         let (_, group_tag, group_type, group_end) = self.prepare_to_descend(name)?;
 
         let mut struct_cursor = self.src.clone();
@@ -1145,7 +1150,12 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         // Check each enum variant name to see if it is of the form "if enum_tag==enum_val" and if so extract
         // enum_tag and enum_value:
         for v in variants {
-            if self.is_variant_applicable(v)? {
+            // Ignore any command prefix on the variant name such as "Transparent:".
+            let stripped_v = match v.split_once(':') {
+                Some((_, remainder)) => remainder,
+                None => v,
+            };
+            if self.is_variant_applicable(stripped_v)? {
                 self.item_identifier = Some(v.to_string());
                 break;
             }
@@ -1203,14 +1213,8 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                 // then raise a `SerdeError::Other("unknown variant")` error. That isn't terrible, but it's better to
                 // raise a `SerdeError::UnexpectedType` error here instead as really we are being asked to deserialize a
                 // non-enum TTLV item into a Rust enum which is a type expectation mismatch.
-                if self.item_identifier.is_none() {
-                    let error = SerdeError::UnexpectedType {
-                        expected: TtlvType::Enumeration,
-                        actual: item_type,
-                    };
-                    Err(pinpoint!(error, self))
-                } else {
-                    if name.strip_prefix("WithTtlHeader:").is_some() {
+                if let Some(item_identifier) = &self.item_identifier {
+                    if name.starts_with("WithTtlHeader:") || item_identifier.starts_with("WithTtlHeader:") {
                         let loc = self.location(); // See the note above about working around greedy closure capturing
                         TtlvDeserializer::read_length(&mut self.src, Some(&mut self.state.borrow_mut()))
                             .map_err(|err| pinpoint!(err, loc))?;
@@ -1230,6 +1234,13 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
                     }
 
                     visitor.visit_enum(&mut *self) // jumps to impl VariantAccess below
+                } else {
+                    debug!("Expected KMIP enumeration but found {item_type}.");
+                    let error = SerdeError::UnexpectedType {
+                        expected: TtlvType::Enumeration,
+                        actual: item_type,
+                    };
+                    Err(pinpoint!(error, self))
                 }
             }
             None => {

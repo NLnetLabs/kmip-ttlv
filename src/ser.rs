@@ -373,12 +373,14 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         // The Override name prefix has no meaning in the case of a tuple variant, it only applies to a single inner
         // tagged value whose tag should be overriden. See serialize_newtype_variant().
         let name = name.strip_prefix("Override:").unwrap_or(name);
-        // The WithTtlHeader name prefix is for deserialization only, ignore it.
-        let name = name.strip_prefix("WithTtlHeader:").unwrap_or(name);
-        let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
-        self.write_tag(item_tag, false)?;
-        self.write_type(TtlvType::Structure)?;
-        self.write_zero_len()?;
+
+        if name != "Untagged" {
+            let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+            self.write_tag(item_tag, false)?;
+            self.write_type(TtlvType::Structure)?;
+            self.write_zero_len()?;
+        }
+
         // SerializeTupleVariant will write out the tuple fields then call rewrite_len()
         Ok(self)
     }
@@ -402,8 +404,10 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
             (name, false)
         };
 
+        if name == "Transparent" {
+            value.serialize(self)
         // If the variant name is "Transparent" serialize the inner value directly, don't wrap it in a TTLV Structure.
-        if variant == "Transparent" {
+        } else if variant == "Transparent" {
             let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
             self.write_tag(item_tag, set_ignore_next_tag)?;
             value.serialize(self)
@@ -451,8 +455,10 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     /// named member fields for cases where there is no need to explicitly name the field type in order to use it.
     #[instrument(level = "trace", skip(self))]
     fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
-        self.write_tag(item_tag, false)?;
+        if !name.starts_with("Transparent:") {
+            let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+            self.write_tag(item_tag, false)?;
+        }
         self.write_type(TtlvType::Structure)?;
         self.write_zero_len()?;
         // SerializeStruct will write out the tuple fields then call rewrite_len()
@@ -599,11 +605,13 @@ impl ser::SerializeStruct for &mut TtlvSerializer {
     type Error = Error;
 
     #[instrument(level = "trace", skip(self, value))]
-    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
     where
         T: Serialize + ?Sized,
     {
-        self.write_tag(TtlvTag::from_str(_key).unwrap(), true)?;
+        if key != "Untagged" {
+            self.write_tag(TtlvTag::from_str(key).unwrap(), true)?;
+        }
         value.serialize(&mut **self)
     }
 
