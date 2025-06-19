@@ -131,6 +131,7 @@ where
 /// result in`Error::ResponseSizeExceedsLimit`.
 #[maybe_async::maybe_async]
 #[instrument(level = "trace", skip(reader))]
+#[allow(clippy::result_large_err)]
 pub async fn from_reader<T, R>(mut reader: R, config: &Config) -> std::result::Result<(T, Vec<u8>), (Error, Vec<u8>)>
 where
     T: DeserializeOwned,
