@@ -567,16 +567,17 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         self.item_unexpected = if let Some(group_fields) = &self.group_fields {
             let field_index = self.group_item_count - 1;
             let actual_tag_str = &self.item_tag.unwrap().to_string();
-            let expected_tag_str = match group_fields {
-                FieldNames::SerdeNames(names) => names
-                    .get(field_index)
-                    .map_or_else(|| actual_tag_str.clone(), |v| v.to_string()),
-                FieldNames::TagIds(tag_ids) => tag_ids
-                    .get(field_index)
-                    .map_or_else(|| actual_tag_str.clone(), |v| v.to_string()),
-            };
-            let res = actual_tag_str != &expected_tag_str;
-            self.item_identifier = Some(expected_tag_str);
+            let rust_field_name = group_fields
+                .nth(field_index)
+                .map_or_else(|| actual_tag_str.clone(), |v| v.to_string());
+            let expected_tag_str = strip_colon_prefix(&rust_field_name);
+            let res = actual_tag_str != expected_tag_str;
+
+            trace!(
+                "Marking item as {} at field index={field_index}, actual tag={actual_tag_str}, expected tag={expected_tag_str}, rust field name={rust_field_name}",
+                if res { "unexpected" } else { "expected" },
+            );
+            self.item_identifier = Some(rust_field_name);
 
             // deserialize_option() will later use this to decide whether or
             // not the absence of a value is acceptable or not
@@ -1784,8 +1785,22 @@ enum FieldNames {
 impl FieldNames {
     pub fn len(&self) -> usize {
         match self {
-            FieldNames::SerdeNames(v) => v.len(),
-            FieldNames::TagIds(v) => v.len(),
+            FieldNames::SerdeNames(items) => items.len(),
+            FieldNames::TagIds(items) => items.len(),
+        }
+    }
+
+    pub fn nth(&self, index: usize) -> Option<&str> {
+        match self {
+            FieldNames::SerdeNames(items) => items.get(index).copied(),
+            FieldNames::TagIds(items) => items.get(index).map(|v| v.as_str()),
+        }
+    }
+
+    pub fn contains_tag(&self, tag: &str) -> bool {
+        match self {
+            FieldNames::SerdeNames(items) => items.iter().any(|&item| strip_colon_prefix(item) == tag),
+            FieldNames::TagIds(items) => items.iter().any(|item| item == tag),
         }
     }
 }
