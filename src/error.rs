@@ -530,7 +530,7 @@ impl Display for SerdeError {
             SerdeError::Other(v) => write!(f, "Serde encountered an error: {v}"),
             SerdeError::UnexpectedTag { expected, actual } => write!(f, "Expected KMIP TTLV tag {expected} but found {actual}"),
             SerdeError::UnexpectedType { expected, actual } => write!(f, "Expected KMIP TTLV type {expected} but found {actual}"),
-            SerdeError::UnsupportedRustType(v) => write!(f, "The deserializer does not yet support deserializing into Rust type '{v}"),
+            SerdeError::UnsupportedRustType(v) => write!(f, "The (de)serializer does not yet support (de)serializing into/from Rust type '{v}'"),
         }
     }
 }
