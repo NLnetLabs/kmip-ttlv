@@ -116,6 +116,7 @@ impl TtlvSerializer {
     #[instrument(level = "trace", skip(self))]
     fn write_type(&mut self, item_type: TtlvType) -> Result<()> {
         if self.advance_state_machine(FieldType::Type(Some(item_type)))? {
+            debug!("Writing type {item_type}");
             item_type.write(&mut self.dst).map_err(|err| pinpoint!(err, self))?;
         }
         Ok(())
@@ -127,6 +128,7 @@ impl TtlvSerializer {
     #[instrument(level = "trace", skip(self))]
     fn write_zero_len(&mut self) -> Result<()> {
         if self.advance_state_machine(FieldType::Length(Some(TtlvLength::new(0))))? {
+            debug!("Writing placeholder zero length");
             TtlvLength::new(0)
                 .write(&mut self.dst)
                 .map_err(|err| pinpoint!(err, self.location()))?;
@@ -147,6 +149,7 @@ impl TtlvSerializer {
             let len_to_write: u32 = (self.dst.len() - v_start_pos) as u32;
             let bytes_to_overwrite = &mut self.dst.as_mut_slice()[v_start_pos - 4..v_start_pos];
             bytes_to_overwrite.copy_from_slice(&len_to_write.to_be_bytes());
+            debug!("Rewrote placeholder length to {len_to_write}");
         }
         Ok(())
     }
