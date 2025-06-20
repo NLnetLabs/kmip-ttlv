@@ -533,7 +533,8 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         //     struct. These should be ignored unless `#[serde(deny_unknown_fields)]` has been used.
         //
         //   - Extra fields: tags that exist in the Rust struct but not in the byte stream. These represent missing
-        //     but required data which the absence of which should cause deserialization to fail.
+        //     but required data which the absence of which should cause deserialization to fail (unless the Serde
+        //     default attribute has been applied to the field, or to the whole struct).
         //
         // Serde derive expects that we announce the name of the field that we have encountered in the byte stream,
         // i.e. that `fn deserialize_identifier()` will invoke `visitor.visit_str()` with the *Rust* field name. Due to
@@ -624,6 +625,7 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
         let (group_start, group_tag, group_type) = self.get_start_tag_type()?;
 
         if group_tag != wanted_tag {
+            debug!("Expected KMIP tag {wanted_tag} but found tag {group_tag}.");
             return Err(pinpoint!(
                 SerdeError::UnexpectedTag {
                     expected: wanted_tag,
