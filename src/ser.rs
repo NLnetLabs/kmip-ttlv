@@ -1,5 +1,4 @@
 //! High-level Serde based serialization of Rust data types to TTLV bytes.
-
 use std::{io::Write, str::FromStr};
 
 use serde::{
@@ -328,7 +327,12 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     /// }
     /// ```
     #[instrument(level = "trace", skip(self))]
-    fn serialize_unit_variant(self, name: &'static str, _variant_index: u32, variant: &'static str) -> Result<()> {
+    fn serialize_unit_variant(
+        self,
+        enum_name: &'static str,
+        _enum_variant_index: u32,
+        enum_variant_name: &'static str,
+    ) -> Result<()> {
         // Don't write the tag if we just wrote a tag. This can happen in situations like this:
         //
         //   Tag: Template-Attribute (0x420091), Type: Structure (0x01), Data:
@@ -353,11 +357,11 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         //
         // So in this case we should skip writing out the tag and only write the type, length and value.
 
-        let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+        let item_tag = TtlvTag::from_str(enum_name).map_err(|err| pinpoint!(err, self.location()))?;
         self.write_tag(item_tag, false)?;
 
-        let variant = u32::from_str_radix(variant.trim_start_matches("0x"), 16)
-            .map_err(|_| pinpoint!(SerdeError::InvalidVariant(variant), self.location()))?;
+        let variant = u32::from_str_radix(enum_variant_name.trim_start_matches("0x"), 16)
+            .map_err(|_| pinpoint!(SerdeError::InvalidVariant(enum_variant_name), self.location()))?;
         variant.serialize(self)
     }
 
@@ -365,17 +369,17 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     #[instrument(level = "trace", skip(self))]
     fn serialize_tuple_variant(
         self,
-        name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
+        enum_name: &'static str,
+        _enum_variant_index: u32,
+        _enum_variant_name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
         // The Override name prefix has no meaning in the case of a tuple variant, it only applies to a single inner
         // tagged value whose tag should be overriden. See serialize_newtype_variant().
-        let name = name.strip_prefix("Override:").unwrap_or(name);
+        let enum_name = enum_name.strip_prefix("Override:").unwrap_or(enum_name);
 
-        if !name.starts_with("Untagged") {
-            let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+        if !enum_name.starts_with("Untagged") {
+            let item_tag = TtlvTag::from_str(enum_name).map_err(|err| pinpoint!(err, self.location()))?;
             self.write_tag(item_tag, false)?;
             self.write_type(TtlvType::Structure)?;
             self.write_zero_len()?;
@@ -388,9 +392,9 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     #[instrument(level = "trace", skip(self, value))]
     fn serialize_newtype_variant<T>(
         self,
-        name: &'static str,
-        variant_index: u32,
-        variant: &'static str,
+        enum_name: &'static str,
+        enum_variant_index: u32,
+        enum_variant_name: &'static str,
         value: &T,
     ) -> Result<()>
     where
@@ -398,12 +402,11 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     {
         // If the Override name prefix is present use the tag of this enum when writing the next item instead of that
         // items own tag.
-        let (name, set_ignore_next_tag) = if let Some(name) = name.strip_prefix("Override:") {
+        let (name, set_ignore_next_tag) = if let Some(name) = enum_name.strip_prefix("Override:") {
             (name, true)
         } else {
-            (name, false)
+            (enum_name, false)
         };
-
         if name == "Transparent" {
             if let Some((cmd, v_name)) = enum_variant_name.split_once(':') {
                 if cmd == "TagOnly" {
@@ -425,12 +428,12 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
             }
             value.serialize(self)
         // If the variant name is "Transparent" serialize the inner value directly, don't wrap it in a TTLV Structure.
-        } else if variant == "Transparent" {
+        } else if enum_variant_name == "Transparent" {
             let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
             self.write_tag(item_tag, set_ignore_next_tag)?;
             value.serialize(self)
         } else {
-            let mut ser = self.serialize_tuple_variant(name, variant_index, variant, 1)?;
+            let mut ser = self.serialize_tuple_variant(name, enum_variant_index, enum_variant_name, 1)?;
             ser.serialize_field(value)?;
             ser.end()
         }
