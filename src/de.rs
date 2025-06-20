@@ -294,11 +294,11 @@ pub(crate) struct TtlvDeserializer<'de: 'c, 'c> {
     group_homogenous: bool,           // sequence/map field handling: are all items in the group of the same type?
 
     // for the current field being parsed
-    item_start: u64, // optional field handling: point to return to if field is missing
+    item_start: u64,                  // optional field handling: point to return to if field is missing
     item_tag: Option<TtlvTag>,
     item_type: Option<TtlvType>,
-    item_unexpected: bool, // optional field handling: is this tag wrong for the expected field (and thus is missing?)
-    item_identifier: Option<String>,
+    item_unexpected: bool,            // optional field handling: is this tag wrong for the expected field (and thus is missing?)
+    item_identifier: Option<String>,  // must be the actual Serde (re)name, not a KMIP tag string
 
     // lookup maps
     tag_value_store: Rc<RefCell<HashMap<TtlvTag, String>>>,
@@ -655,17 +655,9 @@ impl<'de: 'c, 'c> TtlvDeserializer<'de, 'c> {
 
     #[instrument(level = "trace", skip(self))]
     fn is_variant_applicable(&self, variant: &'static str) -> Result<bool> {
-        // str::split_once() wasn't stablized until Rust 1.52.0 but as we want to be usable by Krill, and Krill
-        // supported Rust >= 1.49.0 at the time of writing, we use our own split_once() implementation.
-        pub fn split_once<'a>(value: &'a str, delimiter: &str) -> Option<(&'a str, &'a str)> {
-            value
-                .find(delimiter)
-                .map(|idx| (&value[..idx], &value[idx + delimiter.len()..]))
-        }
-
         if let Some(rule) = variant.strip_prefix("if ") {
             for (op, handler_fn) in &self.matcher_rule_handlers {
-                if let Some((wanted_tag, wanted_val)) = split_once(rule, op) {
+                if let Some((wanted_tag, wanted_val)) = rule.split_once(op) {
                     return handler_fn(self, wanted_tag.trim(), wanted_val.trim()).map_err(|err| pinpoint!(err, self));
                 }
             }
@@ -840,10 +832,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         V: Visitor<'de>,
     {
         // Ignore any command prefix on the name such as "Transparent:0x4200nn".
-        let name = match name.split_once(':') {
-            Some((_, name)) => name,
-            None => name,
-        };
+        let name = strip_colon_prefix(name);
         let (_, group_tag, group_type, group_end) = self.prepare_to_descend(name)?;
 
         let mut struct_cursor = self.src.clone();
@@ -1021,9 +1010,10 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
             // Report back that the optional item was not found and rewind the read cursor so that we will visit this
             // TTLV tag again.
             trace!(
-                "deserialize_option: Skipping from cursor position {} to {}",
+                "deserialize_option: Skipping from cursor position {} to {} because tag {:?} is unexpected and the current Rust field being deserialized into is optional (either Option or serde(default))",
                 self.src.position(),
-                self.item_start
+                self.item_start,
+                self.item_tag,
             );
             self.src.set_position(self.item_start);
             // Reset the state machine to expect a tag as it's currently expecting a value but should expect a tag.
@@ -1154,10 +1144,7 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
         // enum_tag and enum_value:
         for v in variants {
             // Ignore any command prefix on the variant name such as "Transparent:".
-            let stripped_v = match v.split_once(':') {
-                Some((_, remainder)) => remainder,
-                None => v,
-            };
+            let stripped_v = strip_colon_prefix(v);
             if self.is_variant_applicable(stripped_v)? {
                 self.item_identifier = Some(v.to_string());
                 break;
@@ -1801,4 +1788,11 @@ impl FieldNames {
             FieldNames::TagIds(v) => v.len(),
         }
     }
+}
+
+fn strip_colon_prefix(possibly_prefixed_tag: &str) -> &str {
+    possibly_prefixed_tag
+        .split_once(':')
+        .map(|(_, item_tag)| item_tag)
+        .unwrap_or(possibly_prefixed_tag)
 }
