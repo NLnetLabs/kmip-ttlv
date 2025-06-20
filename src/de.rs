@@ -294,11 +294,11 @@ pub(crate) struct TtlvDeserializer<'de: 'c, 'c> {
     group_homogenous: bool,           // sequence/map field handling: are all items in the group of the same type?
 
     // for the current field being parsed
-    item_start: u64,                  // optional field handling: point to return to if field is missing
+    item_start: u64, // optional field handling: point to return to if field is missing
     item_tag: Option<TtlvTag>,
     item_type: Option<TtlvType>,
-    item_unexpected: bool,            // optional field handling: is this tag wrong for the expected field (and thus is missing?)
-    item_identifier: Option<String>,  // must be the actual Serde (re)name, not a KMIP tag string
+    item_unexpected: bool, // optional field handling: is this tag wrong for the expected field (and thus is missing?)
+    item_identifier: Option<String>, // must be the actual Serde (re)name, not a KMIP tag string
 
     // lookup maps
     tag_value_store: Rc<RefCell<HashMap<TtlvTag, String>>>,
@@ -1845,12 +1845,12 @@ impl FieldNames {
         }
     }
 
-    pub fn contains_tag(&self, tag: &str) -> bool {
-        match self {
-            FieldNames::SerdeNames(items) => items.iter().any(|&item| strip_colon_prefix(item) == tag),
-            FieldNames::TagIds(items) => items.iter().any(|item| item == tag),
-        }
-    }
+    // pub fn contains_tag(&self, tag: &str) -> bool {
+    //     match self {
+    //         FieldNames::SerdeNames(items) => items.iter().any(|&item| strip_colon_prefix(item) == tag),
+    //         FieldNames::TagIds(items) => items.iter().any(|item| item == tag),
+    //     }
+    // }
 }
 
 fn strip_colon_prefix(possibly_prefixed_tag: &str) -> &str {
