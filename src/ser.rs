@@ -405,6 +405,24 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         };
 
         if name == "Transparent" {
+            if let Some((cmd, v_name)) = enum_variant_name.split_once(':') {
+                if cmd == "TagOnly" {
+                    // The enum name is "TagOnly" meaning that we should
+                    // serialize the Tag but not the Type or Length (i.e. only
+                    // the first T and the V of TTLV). This is needed for
+                    // example by the KMIP KeyMaterial type as it has a
+                    // variable type for the same tag number so one cannot
+                    // know the type at the point when the tag is being
+                    // serialized, hence the use of "Transparent" to skip the
+                    // whole tag, but the user has defined their data
+                    // structure such that the tag will also not be serialized
+                    // as part of thh serialzation of the enum variant value
+                    // and yet the tag is still required, hence we force
+                    // serializing ONLY the tag here.
+                    let item_tag = TtlvTag::from_str(v_name).map_err(|err| pinpoint!(err, self.location()))?;
+                    self.write_tag(item_tag, set_ignore_next_tag)?;
+                }
+            }
             value.serialize(self)
         // If the variant name is "Transparent" serialize the inner value directly, don't wrap it in a TTLV Structure.
         } else if variant == "Transparent" {
