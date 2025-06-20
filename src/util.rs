@@ -155,7 +155,7 @@ impl PrettyPrinter {
                     TtlvType::BigInteger  => { format!(" {data}", data = hex::encode_upper(TtlvBigInteger::read(cursor)?.deref())) }
                     TtlvType::Enumeration => { let data = TtlvEnumeration::read(cursor)?; format!(" {:#08X} ({} = {})", *data, *data, enum_map.get(&(tag, *data)).unwrap_or(&"??")) }
                     TtlvType::Boolean     => { format!(" {data}", data = TtlvBoolean::read(cursor)?.deref()) }
-                    TtlvType::TextString  => { let data = TtlvTextString::read(cursor)?; format!(" {} (0x{})", data.deref(), data.encode_hex_upper::<String>()) }
+                    TtlvType::TextString  => { let data = TtlvTextString::read(cursor)?; format!(" \"{}\" (0x{})", data.deref(), data.encode_hex_upper::<String>()) }
                     TtlvType::ByteString  => { format!(" {data}", data = hex::encode_upper(TtlvByteString::read(cursor)?.deref())) }
                     TtlvType::DateTime    => { format!(" {data:#08X}", data = TtlvDateTime::read(cursor)?.deref()) }
                 };
