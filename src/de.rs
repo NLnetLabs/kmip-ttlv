@@ -1658,8 +1658,56 @@ impl<'de: 'c, 'c> SeqAccess<'de> for TtlvDeserializer<'de, 'c> {
             self.state.borrow_mut().reset();
             Ok(None)
         } else {
-            // The tag and type match that of the first item in the sequence, process this element.
-            trace!("next_element_seed: First item found");
+            // This was added to wrok around a problem with optional fields, but seems
+            // not to be needed, presumably at the time I was just holding Serde wrong
+            // by not using the serde skip deserializing of option if none and default
+            // attributes in the particular case that was failing? Leave this here but
+            // commented out, I hope we can delete it later.
+            //
+            // // If this is a homogenous group then we already check above if
+            // // this tag is the expected one for the group. So check the
+            // // non-homogenous case now.
+            // if !self.group_homogenous {
+            //     if let Some(current_tag) = self.item_tag {
+            //         if let Some(group_fields) = &self.group_fields {
+            //             let index = self.group_item_count - 1;
+            //             let expected_tag = group_fields.nth(index).ok_or_else(|| {
+            //                 let serde_error = ErrorKind::SerdeError(
+            //                     SerdeError::Other(format!("Missing field name for item {index} in sequence")),
+            //                     None,
+            //                 );
+            //                 Self::Error::new(serde_error, self.location())
+            //             })?;
+            //             trace!("Checking if the current {current_tag} tag in this sequence is the expected tag {expected_tag}");
+            //             if let Ok(expected_tag) = TtlvTag::from_str(expected_tag) {
+            //                 if current_tag != expected_tag {
+            //                     // If this tag is not expected now but is part of this sequence,
+            //                     // Serde may have been configured to skip it, so just return None
+            //                     // and let Serde deal with it. If however it is not part of this
+            //                     // sequence thisi s then an error.
+            //                     trace!("Checking if the current tag {current_tag} is in the expected set of tags {group_fields:?} for this sequence");
+            //                     if !group_fields.contains_tag(&current_tag.to_string()) {
+            //                         let serde_error = ErrorKind::SerdeError(
+            //                             SerdeError::UnexpectedTag {
+            //                                 expected: expected_tag,
+            //                                 actual: current_tag,
+            //                             },
+            //                             None,
+            //                         );
+            //                         return Err(Self::Error::new(serde_error, self.location()));
+            //                     }
+            //                 }
+            //             }
+            //         } else {
+            //             trace!("Cannot check if the tag is expected: no group fields available");
+            //         }
+            //     } else {
+            //         trace!("Cannot check if the tag is expected: no current tag available");
+            //     }
+            // }
+
+            // The tag and type match that of the next item in the sequence, process this element.
+            trace!("next_element_seed: item found");
             seed.deserialize(self).map(Some) // jumps to deserialize_identifier() above
         }
     }
