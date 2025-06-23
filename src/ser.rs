@@ -634,7 +634,10 @@ impl ser::SerializeStruct for &mut TtlvSerializer {
         T: Serialize + ?Sized,
     {
         if !key.starts_with("Untagged") {
-            self.write_tag(TtlvTag::from_str(key).unwrap(), true)?;
+            self.write_tag(
+                TtlvTag::from_str(key).map_err(|err| pinpoint!(err, self.location()))?,
+                true,
+            )?;
         }
         value.serialize(&mut **self)
     }
