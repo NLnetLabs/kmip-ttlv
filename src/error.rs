@@ -144,7 +144,7 @@ impl From<types::Error> for ErrorKind {
                 actual,
                 context,
             }),
-            types::Error::InvalidTtlvTag(v) => Self::SerdeError(SerdeError::InvalidTag(v), None),
+            types::Error::InvalidTtlvTag(v, t) => Self::SerdeError(SerdeError::InvalidTag(v, t), None),
             types::Error::UnsupportedTtlvType(v) => Self::MalformedTtlv(MalformedTtlvError::UnsupportedType(v)),
             types::Error::InvalidTtlvType(v) => Self::MalformedTtlv(MalformedTtlvError::InvalidType(v)),
             types::Error::InvalidTtlvValueLength {
@@ -495,7 +495,7 @@ pub enum SerdeError {
 
     /// The `#[serde(rename = "...")]` name assigned to a Rust data type is not a valid TTLV six character hexadecimal
     /// value such as `0x12ABEF`.
-    InvalidTag(String),
+    InvalidTag(String, String),
 
     /// None of the `#[serde(rename = "...")]` named fields in the Rust struct being deserialized into matches the TTLV
     /// tag value being deserialized.
@@ -525,7 +525,7 @@ impl Display for SerdeError {
         match self {
             SerdeError::InvalidVariant(v) => write!(f, "Enum variant name '{v}' is neither a hexadecimal string value nor valid matcher syntax"),
             SerdeError::InvalidVariantMatcherSyntax(v) => write!(f, "Enum variant name '{v}' is not valid matcher syntax"),
-            SerdeError::InvalidTag(v) => write!(f, "The Serde name '{v}' assigned to a Rust data type is not a valid TTLV six character hexadecimal tag value"),
+            SerdeError::InvalidTag(v, t) => write!(f, "The Serde name '{v}' assigned to Rust data type '{t}' is not a valid TTLV six character hexadecimal tag value"),
             SerdeError::MissingIdentifier => write!(f, "None of the Serde named fields in the Rust struct being deserialized into matches the TTLV tag value being deserialized."),
             SerdeError::Other(v) => write!(f, "Serde encountered an error: {v}"),
             SerdeError::UnexpectedTag { expected, actual } => write!(f, "Expected KMIP TTLV tag {expected} but found {actual}"),

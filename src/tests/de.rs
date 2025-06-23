@@ -322,7 +322,7 @@ fn test_incorrect_serde_configuration_invalid_tags() {
     macro_rules! test_invalid_tag {
         ($rust_type:ty, $actual_tlv_value:expr) => {
             let err = from_slice::<$rust_type>(&ttlv_bytes_with_custom_tlv(&$actual_tlv_value)).unwrap_err();
-            assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::InvalidTag(_), ..));
+            assert_matches!(err.kind(), ErrorKind::SerdeError(SerdeError::InvalidTag(_, _), ..));
             assert_eq!(err.location().offset(), Some(ByteOffset(0)));
             assert_eq!(err.location().parent_tags(), &[]);
             assert_eq!(err.location().tag(), None);

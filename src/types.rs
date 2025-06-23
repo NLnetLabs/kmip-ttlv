@@ -140,7 +140,7 @@ impl<T> From<std::io::Cursor<T>> for ByteOffset {
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
     IoError(std::io::Error),
-    InvalidTtlvTag(String),
+    InvalidTtlvTag(String, String),
     UnexpectedTtlvField {
         expected: FieldType,
         actual: FieldType,
@@ -218,8 +218,8 @@ impl FromStr for TtlvTag {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let v =
-            u32::from_str_radix(s.trim_start_matches("0x"), 16).map_err(|_| Error::InvalidTtlvTag(s.to_string()))?;
+        let v = u32::from_str_radix(s.trim_start_matches("0x"), 16)
+            .map_err(|_| Error::InvalidTtlvTag(s.to_string(), std::any::type_name::<Self>().to_string()))?;
         Ok(TtlvTag(v))
     }
 }
