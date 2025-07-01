@@ -89,7 +89,7 @@ pub enum CaptureMode {
     /// Requests and responses will be parsed and captured in a verbose human
     /// readable form. This form requires some knowledge of KMIP TTLV but may
     /// be fairly self evident, especially compared to the Diagnostic form.
-    /// 
+    ///
     /// WARNING: This form INCLUDES sensitive data such as access credentials
     /// in the captured data and should not be enabled during normal
     /// operations.
@@ -129,17 +129,23 @@ impl Config {
 
     /// Enable capturing of request and response bytes for diagnostic purposes
     pub fn with_capture(self) -> Self {
-        Self { capture: CaptureMode::Diagnostic, ..self }
+        Self {
+            capture: CaptureMode::Diagnostic,
+            ..self
+        }
     }
 
     /// Enable capturing of full request and response details including
     /// sensistive data.
-    /// 
+    ///
     /// WARNING: This form INCLUDES sensitive data such as access credentials
     /// in the captured data and should not be enabled during normal
     /// operations.
     pub fn with_sensitive_capture(self) -> Self {
-        Self { capture: CaptureMode::Sensitive, ..self }
+        Self {
+            capture: CaptureMode::Sensitive,
+            ..self
+        }
     }
 }
 
