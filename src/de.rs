@@ -71,7 +71,29 @@ use tracing::{debug, instrument, trace};
 #[derive(Clone, Debug, Default)]
 pub struct Config {
     max_bytes: Option<u32>,
-    capture: bool,
+    capture: CaptureMode,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub enum CaptureMode {
+    /// No request/response capturing will be performed.
+    #[default]
+    Disabled,
+
+    /// Requests and responses will be parsed and captured in a short human
+    /// readable form intended for safe diagnostics. This form requires
+    /// considerable knowledge of KMIP TTLV to interpret and deliberately
+    /// omits sensitive data.
+    Diagnostic,
+
+    /// Requests and responses will be parsed and captured in a verbose human
+    /// readable form. This form requires some knowledge of KMIP TTLV but may
+    /// be fairly self evident, especially compared to the Diagnostic form.
+    /// 
+    /// WARNING: This form INCLUDES sensitive data such as access credentials
+    /// in the captured data and should not be enabled during normal
+    /// operations.
+    Sensitive,
 }
 
 impl Config {
@@ -87,7 +109,7 @@ impl Config {
     }
 
     /// Should request and response bytes be captured for diagnostic purposes?
-    pub fn capture(&self) -> bool {
+    pub fn capture(&self) -> CaptureMode {
         self.capture
     }
 }
@@ -107,7 +129,17 @@ impl Config {
 
     /// Enable capturing of request and response bytes for diagnostic purposes
     pub fn with_capture(self) -> Self {
-        Self { capture: true, ..self }
+        Self { capture: CaptureMode::Diagnostic, ..self }
+    }
+
+    /// Enable capturing of full request and response details including
+    /// sensistive data.
+    /// 
+    /// WARNING: This form INCLUDES sensitive data such as access credentials
+    /// in the captured data and should not be enabled during normal
+    /// operations.
+    pub fn with_sensitive_capture(self) -> Self {
+        Self { capture: CaptureMode::Sensitive, ..self }
     }
 }
 
