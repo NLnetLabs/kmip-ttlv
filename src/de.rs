@@ -926,11 +926,15 @@ impl<'de: 'c, 'c> Deserializer<'de> for &mut TtlvDeserializer<'de, 'c> {
 
     /// Deserialize the bytes at the current cursor position to a Rust struct with a single field.
     #[instrument(level = "trace", skip(self, visitor))]
-    fn deserialize_newtype_struct<V>(self, _name: &'static str, visitor: V) -> Result<V::Value>
+    fn deserialize_newtype_struct<V>(self, name: &'static str, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_newtype_struct(self) // jumps to to the appropriate deserializer fn such as deserialize_string()
+        if name.starts_with("Transparent:") {
+            visitor.visit_newtype_struct(self) // jumps to to the appropriate deserializer fn such as deserialize_string()
+        } else {
+            self.deserialize_tuple_struct(name, 1, visitor)
+        }
     }
 
     /// Deserialize the bytes at the current cursor position to a Rust vector (or tuple struct).
