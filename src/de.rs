@@ -1,5 +1,42 @@
 //! High-level Serde based deserialization of TTLV bytes to Rust data types.
 
+// How this works:
+//
+// Serde deserializes by following the Rust type definitions. Given a type to
+// deserialize into and a buffer/stream to read from, the Deserialize impl on
+// the target type is asked to deserialize from the buffer into the Rust type.
+//
+// For example for KMIP TTLV request and response deserialization that process
+// would start with deserializing a RequestMessage or ResponseMessage (not
+// defined in this crate, see crate kmip-protocol instead) which are both
+// defined by the KMIP specification to be TTLV "Structure" types. Assuming
+// that the Rust types used to represent these messages are Rust structs the
+// deserialization process will therefore begin with serde invoking
+// deserialize_struct() (for a RequestMessage { .. } type, note the curly
+// braces) or deserialize_tuple_struct() (for a RequestMessage( .. ) type,
+// note the parentheses). The user of this crate should use the from_xxx()
+// functions defined below to tell Serde to deserialize into result type T
+// (e.g. RequestMessage or ResponseMessage) using the TtlvDeserializer type
+// also defined below. To decode a TTLV "Structure" the code below will
+// attempt to read the initial T (Tag) and subsequent T (Type) and confirm
+// that type Type is the KMIP TTLV code for a "Structure" type. It will then
+// read the L (Length) and then start again with looking at TTLV as the V
+// of a "Structure" is one or more KMIP TTLVs. The Tags and Types encountered
+// in the byte slice/stream are then compared against the expectations set by
+// the Rust types and Serde attributes to detect unexpected data or otherwise
+// to parse the data according to its TTLV type into the target Rust type.
+//
+// The TTLV specification stipulates that there MUST always be Tag followed by
+// Type followed by Length. This deserializer enforces that by using a state
+// machine called TtlvStateMachine.
+//
+// Note: The Serde "name" of the Rust types and fields being deserialzied into
+// are expected to be set to the string representation of the KMIP Tag value
+// for that type at that position in the data stream, e.g. 0x420077 for a
+// "RequestHeader". This should be specified by the Rust type author (as is
+// done by the kmip-protocol crate) using the `#[serde(rename = "0x420077")]`
+// style use of Rust attributes.
+
 use std::{
     cell::{RefCell, RefMut},
     cmp::Ordering,
