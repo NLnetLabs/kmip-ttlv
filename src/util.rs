@@ -29,7 +29,7 @@ impl PrettyPrinter {
     ///
     /// This can be used both to strip common tag prefixes from the output produced by [PrettyPrinter::to_diag_string()]
     /// to make it shorter, and to restore them when using [PrettyPrinter::from_diag_string()].
-    pub fn with_tag_prefix(&mut self, tag_prefix: String) -> &Self {
+    pub fn with_tag_prefix(mut self, tag_prefix: String) -> Self {
         self.tag_prefix = tag_prefix;
         self
     }
@@ -38,7 +38,7 @@ impl PrettyPrinter {
     ///
     /// The tag map is used to render a meaningful name for hexadecimal tag identifiers in pretty printed output by
     /// looking up the human friendly name associated with the tag in the given map.
-    pub fn with_tag_map(&mut self, tag_map: HashMap<TtlvTag, &'static str>) -> &Self {
+    pub fn with_tag_map(mut self, tag_map: HashMap<TtlvTag, &'static str>) -> Self {
         self.tag_map = tag_map;
         self
     }
