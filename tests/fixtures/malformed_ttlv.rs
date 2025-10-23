@@ -1,9 +1,10 @@
 use serde_derive::Deserialize;
 
-use crate::types::{SerializableTtlvType, TtlvTag, TtlvType};
+use kmip_ttlv::types::{SerializableTtlvType, TtlvTag, TtlvType};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "0xAAAAAA")]
+#[allow(dead_code)]
 pub(crate) struct RootType {
     #[serde(rename = "0xBBBBBB")]
     pub a: i32,
@@ -20,6 +21,7 @@ pub(crate) struct FlexibleRootType<T> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "0xAAAAAA")]
+#[allow(dead_code)] // TODO
 pub(crate) struct ByteStringRootType {
     #[serde(rename = "0xBBBBBB")]
     #[serde(with = "serde_bytes")]

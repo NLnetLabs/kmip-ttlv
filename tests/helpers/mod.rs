@@ -1,6 +1,8 @@
+#![cfg(feature = "high-level")]
+
 use std::io::Read;
 
-use crate::Config; // for .take()
+use kmip_ttlv::Config; // for .take()
 
 pub(crate) fn no_response_size_limit() -> Config {
     Config::default()

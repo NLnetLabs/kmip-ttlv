@@ -1,15 +1,20 @@
+#![cfg(feature = "high-level")]
+
 // TOOD: do "use ... as fix" instead of "use ... ::*", then refer to xxx to make it clear what comes from the fixtures.
 
-use crate::error::{ErrorKind, MalformedTtlvError, SerdeError};
-use crate::tests::fixtures;
-use crate::tests::helpers::{make_limited_reader, make_reader, no_response_size_limit, reject_if_response_larger_than};
-use crate::types::{
+use kmip_ttlv::error::{ErrorKind, MalformedTtlvError, SerdeError};
+use kmip_ttlv::types::{
     ByteOffset, SerializableTtlvType, TtlvBigInteger, TtlvBoolean, TtlvByteString, TtlvDateTime, TtlvEnumeration,
     TtlvInteger, TtlvLongInteger, TtlvTag, TtlvTextString, TtlvType,
 };
-use crate::{from_reader, from_slice, Config};
+use kmip_ttlv::{Config, from_reader, from_slice};
+
+mod fixtures;
+mod helpers;
+mod util;
 
 use assert_matches::assert_matches;
+use helpers::{make_limited_reader, make_reader, no_response_size_limit, reject_if_response_larger_than};
 
 #[allow(unused_imports)]
 use pretty_assertions::{assert_eq, assert_ne};
@@ -361,6 +366,7 @@ fn test_mismatched_serde_configuration() {
     #[derive(Debug, Deserialize)]
     #[serde(deny_unknown_fields)]
     #[serde(rename = "0xAAAAAA")]
+    #[allow(dead_code)]
     struct MissingFieldRoot {
         #[serde(rename = "0xBBBBBB")]
         a: i32, // field b is missing
@@ -376,6 +382,7 @@ fn test_mismatched_serde_configuration() {
     // extra field in the byte stream and complete the deserialization.
     #[derive(Debug, Deserialize)]
     #[serde(rename = "0xAAAAAA")]
+    #[allow(dead_code)]
     struct IgnoredMissingFieldRoot {
         #[serde(rename = "0xBBBBBB")]
         a: i32, // field b is missing
@@ -385,6 +392,7 @@ fn test_mismatched_serde_configuration() {
     // Fields specified in the Rust struct are required to exist in the byte stream unless marked as `Option`.
     #[derive(Debug, Deserialize)]
     #[serde(rename = "0xAAAAAA")]
+    #[allow(dead_code)]
     struct ExtraFieldRoot {
         #[serde(rename = "0xBBBBBB")]
         a: i32,

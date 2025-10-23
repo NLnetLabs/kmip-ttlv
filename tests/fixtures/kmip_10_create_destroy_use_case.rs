@@ -60,6 +60,7 @@ pub(crate) enum ResultStatus {
 pub(crate) enum ResponsePayload {
     #[serde(rename = "if 0x42005C==0x00000001")]
     Create(CreateResponsePayload),
+    #[allow(dead_code)]
     Other(SomeOtherResponsePayload),
 }
 
@@ -73,6 +74,7 @@ pub(crate) struct CreateResponsePayload {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub(crate) struct SomeOtherResponsePayload {
     dummy_field: i32,
 }

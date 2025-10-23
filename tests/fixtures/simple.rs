@@ -2,6 +2,7 @@ use serde_derive::Deserialize;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "0xAAAAAA")]
+#[allow(dead_code)]
 pub(crate) struct RootType {
     #[serde(rename = "0xBBBBBB")]
     a: i32,

@@ -1,9 +1,11 @@
+#![cfg(feature = "high-level")]
+
 use std::collections::HashMap;
 
 #[allow(unused_imports)]
 use pretty_assertions::{assert_eq, assert_ne};
 
-use crate::{types::TtlvTag, PrettyPrinter};
+use kmip_ttlv::{PrettyPrinter, types::TtlvTag};
 
 #[test]
 fn test_from_diag_string() {

@@ -2,7 +2,7 @@ use pretty_assertions::{assert_eq, assert_ne};
 
 use std::{convert::TryFrom, io::Cursor, str::FromStr};
 
-use crate::types::{
+use kmip_ttlv::types::{
     Error, SerializableTtlvType, TtlvBigInteger, TtlvBoolean, TtlvByteString, TtlvDateTime, TtlvEnumeration,
     TtlvInteger, TtlvLongInteger, TtlvTag, TtlvTextString, TtlvType,
 };
@@ -123,9 +123,11 @@ fn test_spec_ttlv_long_integer() {
 
     // Test serialization
     let mut serialized_tlv_bytes = Vec::new();
-    assert!(TtlvLongInteger(123456789000000000)
-        .write(&mut serialized_tlv_bytes)
-        .is_ok());
+    assert!(
+        TtlvLongInteger(123456789000000000)
+            .write(&mut serialized_tlv_bytes)
+            .is_ok()
+    );
     assert_eq!(spec_tlv_bytes, serialized_tlv_bytes);
 
     // Test deserialization
@@ -146,9 +148,11 @@ fn test_spec_ttlv_big_integer() {
 
     // Test serialization
     let mut serialized_tlv_bytes = Vec::new();
-    assert!(TtlvBigInteger(big_int.to_signed_bytes_be())
-        .write(&mut serialized_tlv_bytes)
-        .is_ok());
+    assert!(
+        TtlvBigInteger(big_int.to_signed_bytes_be())
+            .write(&mut serialized_tlv_bytes)
+            .is_ok()
+    );
     assert_eq!(spec_tlv_bytes, serialized_tlv_bytes);
 
     // Test deserialization
@@ -202,16 +206,15 @@ fn test_spec_ttlv_byte_string() {
 
 #[test]
 fn test_spec_ttlv_date_time() {
-    use chrono::TimeZone;
-
     //   - A Date-Time, containing the value for Friday, March 14, 2008, 11:56:40 GMT:
     //     42 00 20 | 09 | 00 00 00 08 | 00 00 00 00 47 DA 67 F8
     let mut actual = Vec::new();
     let expected = spec_ttlv_to_vec_tlv("42 00 20 | 09 | 00 00 00 08 | 00 00 00 00 47 DA 67 F8");
-    let dt = chrono::Utc
-        .datetime_from_str("Friday, March 14, 2008, 11:56:40 GMT", "%A, %B %d, %Y, %H:%M:%S GMT")
-        .unwrap();
-    let dt_i64 = dt.timestamp();
+    let dt_i64 =
+        chrono::NaiveDateTime::parse_from_str("Friday, March 14, 2008, 11:56:40 GMT", "%A, %B %d, %Y, %H:%M:%S GMT")
+            .unwrap()
+            .and_utc()
+            .timestamp();
     let expected_i64 = i64::from_be_bytes(*b"\x00\x00\x00\x00\x47\xDA\x67\xF8");
     assert_eq!(expected_i64, dt_i64);
     TtlvDateTime(dt_i64).write(&mut actual).unwrap();
