@@ -6,6 +6,8 @@ macro_rules! pinpoint {
         crate::error::Error::pinpoint_with_tag($error, $location, $tag)
     };
     ($error:expr, $location:expr, $tag:expr, $ty:expr) => {
-        crate::error::Error::pinpoint_with_tag_and_type($error, $location, $tag, $ty)
+        crate::error::Error::pinpoint_with_tag_and_type(
+            $error, $location, $tag, $ty,
+        )
     };
 }

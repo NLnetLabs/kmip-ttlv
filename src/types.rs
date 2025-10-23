@@ -54,20 +54,15 @@ use std::{
 /// The type of TTLV header or value field represented by some TTLV bytes.
 ///
 /// This field is also used by the [TtlvStateMachine] to represent the next expected field type or types.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum FieldType {
+    #[default]
     Tag,
     Type,
     Length,
     Value,
     LengthAndValue,        // used when deserializing
     TypeAndLengthAndValue, // used when serializing
-}
-
-impl Default for FieldType {
-    fn default() -> Self {
-        Self::Tag
-    }
 }
 
 impl Display for FieldType {
@@ -78,7 +73,9 @@ impl Display for FieldType {
             FieldType::Length => f.write_str("Length"),
             FieldType::Value => f.write_str("Value"),
             FieldType::LengthAndValue => f.write_str("LengthAndValue"),
-            FieldType::TypeAndLengthAndValue => f.write_str("TypeAndLengthAndValue"),
+            FieldType::TypeAndLengthAndValue => {
+                f.write_str("TypeAndLengthAndValue")
+            }
         }
     }
 }
@@ -168,7 +165,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// According to the [KMIP specification 1.0 section 9.1.1.1 Item Tag](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_toc8560):
 /// > _An Item Tag is a three-byte binary unsigned integer, transmitted big endian, which contains a number that
-///   designates the specific Protocol Field or Object that the TTLV object represents._
+/// > designates the specific Protocol Field or Object that the TTLV object represents._
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TtlvTag(u32);
 
@@ -180,7 +177,8 @@ impl TtlvTag {
     }
 
     pub fn write<T: Write>(&self, dst: &mut T) -> Result<()> {
-        dst.write_all(&<[u8; 3]>::from(self)).map_err(Error::IoError)
+        dst.write_all(&<[u8; 3]>::from(self))
+            .map_err(Error::IoError)
     }
 }
 
@@ -202,8 +200,8 @@ impl FromStr for TtlvTag {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let v =
-            u32::from_str_radix(s.trim_start_matches("0x"), 16).map_err(|_| Error::InvalidTtlvTag(s.to_string()))?;
+        let v = u32::from_str_radix(s.trim_start_matches("0x"), 16)
+            .map_err(|_| Error::InvalidTtlvTag(s.to_string()))?;
         Ok(TtlvTag(v))
     }
 }
@@ -327,7 +325,7 @@ impl From<TtlvType> for [u8; 1] {
 ///
 /// According to the [KMIP specification 1.0 section 9.1.1.3 Item Length](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_Toc236497868):
 /// > _An Item Length is a 32-bit binary integer, transmitted big-endian, containing the number of bytes in the Item
-///   Value._
+/// > Value._
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TtlvLength(u32);
 
@@ -551,10 +549,10 @@ define_fixed_value_length_serializable_ttlv_type!(
 ///
 /// According to the [KMIP specification 1.0 section 9.1.1.4 Item Value](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_Ref262577330):
 /// > _Big Integers are encoded as a sequence of eight-bit bytes, in two's complement notation,
-///   transmitted big-endian. If the length of the sequence is not a multiple of eight bytes, then Big
-///   Integers SHALL be padded with the minimal number of leading sign-extended bytes to make the
-///   length a multiple of eight bytes. These padding bytes are part of the Item Value and SHALL be
-///   counted in the Item Length._
+/// > transmitted big-endian. If the length of the sequence is not a multiple of eight bytes, then Big
+/// > Integers SHALL be padded with the minimal number of leading sign-extended bytes to make the
+/// > length a multiple of eight bytes. These padding bytes are part of the Item Value and SHALL be
+/// > counted in the Item Length._
 #[derive(Clone, Debug)]
 pub struct TtlvBigInteger(pub Vec<u8>);
 impl Deref for TtlvBigInteger {
@@ -579,8 +577,8 @@ impl SerializableTtlvType for TtlvBigInteger {
         let num_pad_bytes = Self::calc_pad_bytes(v_len);
         let v_len = v_len + num_pad_bytes;
         dst.write_all(&v_len.to_be_bytes())?; // Write L_ength
-                                              // Write pad bytes out as leading sign extending bytes, i.e. if the sign is positive then pad with zeros
-                                              // otherwise pad with ones.
+        // Write pad bytes out as leading sign extending bytes, i.e. if the sign is positive then pad with zeros
+        // otherwise pad with ones.
         let pad_byte = if v_len > 0 && v[0] & 0b1000_0000 == 0b1000_0000 {
             0b1111_1111
         } else {
@@ -615,10 +613,10 @@ define_fixed_value_length_serializable_ttlv_type!(
 ///
 /// According to the [KMIP specification 1.0 section 9.1.1.4 Item Value](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_Ref262577330):
 /// > _Booleans are encoded as an eight-byte value that SHALL either contain the hex value
-///   0000000000000000, indicating the Boolean value False, or the hex value 0000000000000001,
-///   transmitted big-endian, indicating the Boolean value True._
-/// Boolean cannot be implemented using the define_fixed_value_length_serializable_ttlv_type! macro because it has
-/// special value verification rules.
+/// > 0000000000000000, indicating the Boolean value False, or the hex value 0000000000000001,
+/// > transmitted big-endian, indicating the Boolean value True._
+/// > Boolean cannot be implemented using the define_fixed_value_length_serializable_ttlv_type! macro because it has
+/// > special value verification rules.
 #[derive(Clone, Debug)]
 pub struct TtlvBoolean(pub bool);
 impl TtlvBoolean {
@@ -672,7 +670,7 @@ impl SerializableTtlvType for TtlvBoolean {
 ///
 /// According to the [KMIP specification 1.0 section 9.1.1.4 Item Value](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_Ref262577330):
 /// > _Text Strings are sequences of bytes that encode character values according to the UTF-8
-///   encoding standard. There SHALL NOT be null-termination at the end of such strings._
+/// > encoding standard. There SHALL NOT be null-termination at the end of such strings._
 #[derive(Clone, Debug)]
 pub struct TtlvTextString(pub String);
 impl Deref for TtlvTextString {
@@ -692,7 +690,8 @@ impl SerializableTtlvType for TtlvTextString {
 
         // Use the bytes as-is as the internal buffer for a String, verifying that the bytes are indeed valid
         // UTF-8
-        let new_str = String::from_utf8(dst).map_err(|_| Error::InvalidTtlvValue(Self::TTLV_TYPE))?;
+        let new_str = String::from_utf8(dst)
+            .map_err(|_| Error::InvalidTtlvValue(Self::TTLV_TYPE))?;
 
         Ok(TtlvTextString(new_str))
     }
@@ -715,7 +714,7 @@ impl SerializableTtlvType for TtlvTextString {
 ///
 /// According to the [KMIP specification 1.0 section 9.1.1.4 Item Value](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_Ref262577330):
 /// > _Byte Strings are sequences of bytes containing individual unspecified eight-bit binary values, and are interpreted
-///   in the same sequence order._
+/// > in the same sequence order._
 #[derive(Clone, Debug)]
 pub struct TtlvByteString(pub Vec<u8>);
 impl Deref for TtlvByteString {
@@ -765,7 +764,7 @@ define_fixed_value_length_serializable_ttlv_type!(
 ///
 /// According to the [KMIP specification 1.0 section 9.1.1.4 Item Value](http://docs.oasis-open.org/kmip/spec/v1.0/os/kmip-spec-1.0-os.html#_Ref262577330):
 /// > _Intervals are encoded as four-byte long (32 bit) binary unsigned numbers, transmitted big-endian.
-///   They have a resolution of one second._
+/// > They have a resolution of one second._
 #[allow(dead_code)]
 pub type TtlvInterval = TtlvEnumeration;
 
@@ -794,39 +793,58 @@ impl TtlvStateMachine {
         }
     }
 
-    pub fn advance(&mut self, next_field_type: FieldType) -> std::result::Result<bool, Error> {
+    pub fn advance(
+        &mut self,
+        next_field_type: FieldType,
+    ) -> std::result::Result<bool, Error> {
         use TtlvStateMachineMode as Mode;
 
-        let next_expected_next_field_type = match (self.mode, self.expected_next_field_type, next_field_type) {
-            // First, the normal cases: expect a certain field type to be written next and that is what is indicated
-            (_, FieldType::Tag, FieldType::Tag) => FieldType::Type,
-            (_, FieldType::Type, FieldType::Type) => FieldType::Length,
-            (Mode::Serializing, FieldType::Type, FieldType::TypeAndLengthAndValue) => FieldType::Tag,
-            (_, FieldType::Length, FieldType::Length) => FieldType::Value,
-            (Mode::Deserializing, FieldType::Length, FieldType::LengthAndValue) => FieldType::Tag,
-            (_, FieldType::Value, FieldType::Value) => FieldType::Tag,
+        let next_expected_next_field_type =
+            match (self.mode, self.expected_next_field_type, next_field_type) {
+                // First, the normal cases: expect a certain field type to be written next and that is what is indicated
+                (_, FieldType::Tag, FieldType::Tag) => FieldType::Type,
+                (_, FieldType::Type, FieldType::Type) => FieldType::Length,
+                (
+                    Mode::Serializing,
+                    FieldType::Type,
+                    FieldType::TypeAndLengthAndValue,
+                ) => FieldType::Tag,
+                (_, FieldType::Length, FieldType::Length) => FieldType::Value,
+                (
+                    Mode::Deserializing,
+                    FieldType::Length,
+                    FieldType::LengthAndValue,
+                ) => FieldType::Tag,
+                (_, FieldType::Value, FieldType::Value) => FieldType::Tag,
 
-            // In the leaf case a V always follows TTL, but higher in the TTLV structure hierarchy the first item in
-            // a structure can be another TTLV item (i.e. we see a tag being written instead of a value)
-            (_, FieldType::Value, FieldType::Tag) => FieldType::Type,
+                // In the leaf case a V always follows TTL, but higher in the TTLV structure hierarchy the first item in
+                // a structure can be another TTLV item (i.e. we see a tag being written instead of a value)
+                (_, FieldType::Value, FieldType::Tag) => FieldType::Type,
 
-            // Special case: we've been explicitly asked after writing a tag to ignore a subsequent attempt to write
-            // another tag. Normally attempting to write TT would be an error, but in this case the second T should be
-            // silently ignored. This supports use cases like the KMIP Attribute Value which is of the form XTLV where
-            // X is constant tag value and not the normal tag associated with the item being serialized.
-            (Mode::Serializing, FieldType::Type, FieldType::Tag) if self.ignore_next_tag => {
-                self.ignore_next_tag = false;
-                FieldType::Type
-            }
+                // Special case: we've been explicitly asked after writing a tag to ignore a subsequent attempt to write
+                // another tag. Normally attempting to write TT would be an error, but in this case the second T should be
+                // silently ignored. This supports use cases like the KMIP Attribute Value which is of the form XTLV where
+                // X is constant tag value and not the normal tag associated with the item being serialized.
+                (Mode::Serializing, FieldType::Type, FieldType::Tag)
+                    if self.ignore_next_tag =>
+                {
+                    self.ignore_next_tag = false;
+                    FieldType::Type
+                }
 
-            // Error, don't permit invalid things like TTVL etc.
-            (_, expected, actual) => {
-                return Err(Error::UnexpectedTtlvField { expected, actual });
-            }
-        };
+                // Error, don't permit invalid things like TTVL etc.
+                (_, expected, actual) => {
+                    return Err(Error::UnexpectedTtlvField {
+                        expected,
+                        actual,
+                    });
+                }
+            };
 
         // Advance the state machine if needed
-        if self.mode == Mode::Deserializing || next_expected_next_field_type != self.expected_next_field_type {
+        if self.mode == Mode::Deserializing
+            || next_expected_next_field_type != self.expected_next_field_type
+        {
             self.expected_next_field_type = next_expected_next_field_type;
             Ok(true)
         } else {

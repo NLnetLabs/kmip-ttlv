@@ -12,7 +12,8 @@ fn main() {
         std::process::exit(1);
     }
 
-    let mut ttlv_hex_str = std::fs::read_to_string(&args[1]).expect("Failed to read the input file");
+    let mut ttlv_hex_str = std::fs::read_to_string(&args[1])
+        .expect("Failed to read the input file");
 
     for string_to_remove in &[" ", "\n", r#"""#, ","] {
         ttlv_hex_str = ttlv_hex_str.replace(string_to_remove, "");

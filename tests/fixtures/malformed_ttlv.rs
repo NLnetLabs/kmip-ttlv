@@ -1,9 +1,10 @@
 use serde_derive::Deserialize;
 
-use crate::types::{SerializableTtlvType, TtlvTag, TtlvType};
+use kmip_ttlv::types::{SerializableTtlvType, TtlvTag, TtlvType};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "0xAAAAAA")]
+#[allow(dead_code)]
 pub(crate) struct RootType {
     #[serde(rename = "0xBBBBBB")]
     pub a: i32,
@@ -20,6 +21,7 @@ pub(crate) struct FlexibleRootType<T> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "0xAAAAAA")]
+#[allow(dead_code)] // TODO
 pub(crate) struct ByteStringRootType {
     #[serde(rename = "0xBBBBBB")]
     #[serde(with = "serde_bytes")]
@@ -48,7 +50,8 @@ pub(crate) fn ttlv_bytes_with_invalid_root_type() -> Vec<u8> {
 }
 
 pub(crate) fn ttlv_bytes_with_wrong_root_type() -> Vec<u8> {
-    let test_data = format!("AAAAAA  {:02X}  00000020", wrong_root_type() as u8);
+    let test_data =
+        format!("AAAAAA  {:02X}  00000020", wrong_root_type() as u8);
     hex::decode(test_data.replace(" ", "")).unwrap()
 }
 
@@ -90,7 +93,8 @@ pub(crate) fn ttlv_bytes_with_wrong_boolean_value() -> Vec<u8> {
 // 1  Some correct UTF-8 text. The Greek word 'kosme': "κόσμε"
 pub(crate) fn ttlv_bytes_with_valid_utf8() -> Vec<u8> {
     let struct_hdr = "AAAAAA  01  00000018";
-    let raw_ints = ["BBBBBB  07  0000000B  CEBAE1BD  B9CF83CE  BCCEB500 00000000"];
+    let raw_ints =
+        ["BBBBBB  07  0000000B  CEBAE1BD  B9CF83CE  BCCEB500 00000000"];
     let mut test_data = String::new();
     test_data.push_str(struct_hdr);
     test_data.push_str(&raw_ints.join(""));
