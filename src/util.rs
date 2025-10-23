@@ -9,8 +9,9 @@ use std::str::FromStr;
 use crate::de::TtlvDeserializer;
 use crate::error::ErrorKind;
 use crate::types::{
-    SerializableTtlvType, TtlvBigInteger, TtlvBoolean, TtlvByteString, TtlvDateTime, TtlvEnumeration, TtlvInteger,
-    TtlvLongInteger, TtlvStateMachine, TtlvStateMachineMode, TtlvTag, TtlvTextString, TtlvType,
+    SerializableTtlvType, TtlvBigInteger, TtlvBoolean, TtlvByteString,
+    TtlvDateTime, TtlvEnumeration, TtlvInteger, TtlvLongInteger,
+    TtlvStateMachine, TtlvStateMachineMode, TtlvTag, TtlvTextString, TtlvType,
 };
 
 /// Facilities for pretty printing TTLV bytes to text format.
@@ -38,7 +39,10 @@ impl PrettyPrinter {
     ///
     /// The tag map is used to render a meaningful name for hexadecimal tag identifiers in pretty printed output by
     /// looking up the human friendly name associated with the tag in the given map.
-    pub fn with_tag_map(&mut self, tag_map: HashMap<TtlvTag, &'static str>) -> &Self {
+    pub fn with_tag_map(
+        &mut self,
+        tag_map: HashMap<TtlvTag, &'static str>,
+    ) -> &Self {
         self.tag_map = tag_map;
         self
     }
@@ -102,7 +106,11 @@ impl PrettyPrinter {
         self.internal_to_string(bytes, true)
     }
 
-    fn internal_to_string(&self, bytes: &[u8], diagnostic_report: bool) -> String {
+    fn internal_to_string(
+        &self,
+        bytes: &[u8],
+        diagnostic_report: bool,
+    ) -> String {
         let mut indent: usize = 0;
         let mut report = String::new();
         let mut struct_ends = Vec::<u64>::new();
@@ -126,7 +134,8 @@ impl PrettyPrinter {
             strip_tag_prefix: &str,
             tag_map: &HashMap<TtlvTag, &'static str>,
         ) -> std::result::Result<(String, Option<u64>), ErrorKind> {
-            let mut sm = TtlvStateMachine::new(TtlvStateMachineMode::Deserializing);
+            let mut sm =
+                TtlvStateMachine::new(TtlvStateMachineMode::Deserializing);
             let tag = TtlvDeserializer::read_tag(&mut cursor, Some(&mut sm))?;
             let typ = TtlvDeserializer::read_type(&mut cursor, Some(&mut sm))?;
             let mut len = Option::<u64>::None;
@@ -147,9 +156,15 @@ impl PrettyPrinter {
                 };
 
                 if let Some(tag_name) = tag_map.get(&tag) {
-                    format!("Tag: {} ({:#06X}), Type: {}, Data:{}\n", tag_name, *tag, typ, data)
+                    format!(
+                        "Tag: {} ({:#06X}), Type: {}, Data:{}\n",
+                        tag_name, *tag, typ, data
+                    )
                 } else {
-                    format!("Tag: {:#06X}, Type: {}, Data:{}\n", *tag, typ, data)
+                    format!(
+                        "Tag: {:#06X}, Type: {}, Data:{}\n",
+                        *tag, typ, data
+                    )
                 }
             } else {
                 #[rustfmt::skip]
@@ -176,7 +191,8 @@ impl PrettyPrinter {
         loop {
             // Handle walking off the end of the current structure and the entire input
             loop {
-                let rel_pos = cur_struct_end.map_or(Ordering::Less, |end| cursor.position().cmp(&end));
+                let rel_pos = cur_struct_end
+                    .map_or(Ordering::Less, |end| cursor.position().cmp(&end));
                 match rel_pos {
                     Ordering::Less => {
                         // Keep processing the current TTLV structure items
@@ -211,8 +227,13 @@ impl PrettyPrinter {
 
             // Deserialize the next TTLV in the input to a human readable string
             let pos = cursor.position();
-            let res = deserialize_ttlv_to_string(&mut cursor, diagnostic_report, &self.tag_prefix, &self.tag_map)
-                .map_err(|err| pinpoint!(err, pos));
+            let res = deserialize_ttlv_to_string(
+                &mut cursor,
+                diagnostic_report,
+                &self.tag_prefix,
+                &self.tag_map,
+            )
+            .map_err(|err| pinpoint!(err, pos));
 
             match res {
                 Ok((ttlv_string, possible_new_struct_len)) => {
@@ -245,7 +266,9 @@ impl PrettyPrinter {
                             // once the length was known. Note: this can also be correct, it might actually be an empty
                             // structure, but we cannot distinguish between the two cases.
                             if !diagnostic_report {
-                                report.push_str("WARNING: TTLV structure length is zero\n");
+                                report.push_str(
+                                    "WARNING: TTLV structure length is zero\n",
+                                );
                             }
                             broken = true;
                         } else {
@@ -308,14 +331,18 @@ impl PrettyPrinter {
     /// them from the string it produced that we used as input. This example also demonstrates use of a `tag_map` to
     /// give meaning to the hexadecimal tag identifiers.
     pub fn from_diag_string(&self, diag_str: &str) -> String {
-        fn read_tag<'a>(s: &'a str, tag_prefix: &str) -> Option<(Option<TtlvTag>, Option<&'a str>)> {
+        fn read_tag<'a>(
+            s: &'a str,
+            tag_prefix: &str,
+        ) -> Option<(Option<TtlvTag>, Option<&'a str>)> {
             // if the next character is ']' it signals the end of a TTLV Structure
             if let Some(']') = s.chars().next() {
                 return Some((None, Some(&s[1..])));
             }
 
             // read until the first non-capital hex character
-            let (tag_str, opt_new_s) = if let Some(bracket_idx) = s.find(|c: char| !matches!(c, '0'..='9' | 'A'..='F'))
+            let (tag_str, opt_new_s) = if let Some(bracket_idx) =
+                s.find(|c: char| !matches!(c, '0'..='9' | 'A'..='F'))
             {
                 (s[..bracket_idx].to_string(), Some(&s[bracket_idx..]))
             } else if !s.is_empty() {
@@ -335,7 +362,11 @@ impl PrettyPrinter {
         fn read_typ(s: &str) -> Option<(TtlvType, Option<&str>)> {
             let mut iter = s.chars();
             if let Some(c) = iter.next() {
-                let new_s = if iter.next().is_some() { Some(&s[1..]) } else { None };
+                let new_s = if iter.next().is_some() {
+                    Some(&s[1..])
+                } else {
+                    None
+                };
                 match c {
                     '[' => Some((TtlvType::Structure, new_s)),
                     'i' => Some((TtlvType::Integer, new_s)),
@@ -361,7 +392,10 @@ impl PrettyPrinter {
             tag_prefix: &str,
         ) -> Option<(String, Option<&'a str>)> {
             // split_once isn't available until Rust 1.52
-            pub fn split_once(s: &str, delimiter: char) -> Option<(&str, &str)> {
+            pub fn split_once(
+                s: &str,
+                delimiter: char,
+            ) -> Option<(&str, &str)> {
                 let (start, end) = s.split_at(s.find(delimiter)?);
                 Some((&start[..=(start.len() - 1)], &end[1..]))
             }
@@ -381,7 +415,9 @@ impl PrettyPrinter {
                     // split at the enumeration value terminator ':' character
                     match split_once(s, ':') {
                         Some((before, "")) => Some((before.to_string(), None)),
-                        Some((before, after)) => Some((before.to_string(), Some(after))),
+                        Some((before, after)) => {
+                            Some((before.to_string(), Some(after)))
+                        }
                         None => None,
                     }
                 }
@@ -392,17 +428,28 @@ impl PrettyPrinter {
             }
         }
 
-        fn read_next(in_indent: &str, s: &str, tag_map: &HashMap<TtlvTag, &'static str>, tag_prefix: &str) -> String {
+        fn read_next(
+            in_indent: &str,
+            s: &str,
+            tag_map: &HashMap<TtlvTag, &'static str>,
+            tag_prefix: &str,
+        ) -> String {
             let mut out = String::new();
             let mut outer_s = s;
             let mut indent = in_indent;
 
             loop {
-                if let Some((opt_tag, opt_new_s)) = read_tag(outer_s, tag_prefix) {
+                if let Some((opt_tag, opt_new_s)) =
+                    read_tag(outer_s, tag_prefix)
+                {
                     if let Some(tag) = opt_tag {
                         out.push_str(indent);
                         if let Some(tag_name) = tag_map.get(&tag) {
-                            let _ = write!(out, "Tag: {} ({:#06X})", tag_name, *tag);
+                            let _ = write!(
+                                out,
+                                "Tag: {} ({:#06X})",
+                                tag_name, *tag
+                            );
                         } else {
                             let _ = write!(out, "Tag: {:#06X}", *tag);
                         }
@@ -410,8 +457,11 @@ impl PrettyPrinter {
                             if let Some((typ, opt_new_s)) = read_typ(s) {
                                 let _ = write!(out, ", Type: {}", typ);
                                 if let Some(s) = opt_new_s {
-                                    if let Some((val, opt_new_s)) = read_val(indent, s, typ, tag_map, tag_prefix) {
-                                        let _ = writeln!(out, ", Data: {}", &val);
+                                    if let Some((val, opt_new_s)) = read_val(
+                                        indent, s, typ, tag_map, tag_prefix,
+                                    ) {
+                                        let _ =
+                                            writeln!(out, ", Data: {}", &val);
                                         if let Some(s) = opt_new_s {
                                             outer_s = s;
                                             continue;

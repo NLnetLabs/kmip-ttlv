@@ -3,8 +3,9 @@ use pretty_assertions::{assert_eq, assert_ne};
 use std::{convert::TryFrom, io::Cursor, str::FromStr};
 
 use kmip_ttlv::types::{
-    Error, SerializableTtlvType, TtlvBigInteger, TtlvBoolean, TtlvByteString, TtlvDateTime, TtlvEnumeration,
-    TtlvInteger, TtlvLongInteger, TtlvTag, TtlvTextString, TtlvType,
+    Error, SerializableTtlvType, TtlvBigInteger, TtlvBoolean, TtlvByteString,
+    TtlvDateTime, TtlvEnumeration, TtlvInteger, TtlvLongInteger, TtlvTag,
+    TtlvTextString, TtlvType,
 };
 
 use assert_matches::assert_matches;
@@ -68,7 +69,10 @@ fn test_item_type() {
     //
     //         Table 191: Allowed Item Type Values
 
-    assert_matches!(TtlvType::try_from(0x00), Err(Error::InvalidTtlvType(0x00)));
+    assert_matches!(
+        TtlvType::try_from(0x00),
+        Err(Error::InvalidTtlvType(0x00))
+    );
     assert_matches!(TtlvType::try_from(0x01), Ok(TtlvType::Structure));
     assert_matches!(TtlvType::try_from(0x02), Ok(TtlvType::Integer));
     assert_matches!(TtlvType::try_from(0x03), Ok(TtlvType::LongInteger));
@@ -80,7 +84,10 @@ fn test_item_type() {
     assert_matches!(TtlvType::try_from(0x09), Ok(TtlvType::DateTime));
 
     // Interval is not yet implemented
-    assert_matches!(TtlvType::try_from(0x0A), Err(Error::UnsupportedTtlvType(0x0A)));
+    assert_matches!(
+        TtlvType::try_from(0x0A),
+        Err(Error::UnsupportedTtlvType(0x0A))
+    );
 
     // All other values are invalid
     for i in 0x0B..0xFF {
@@ -90,7 +97,12 @@ fn test_item_type() {
 
 fn spec_ttlv_to_vec_tlv(s: &str) -> Vec<u8> {
     // strip out the example fake item tag, spacing and separators
-    hex::decode(s.replace("42 00 20 | ", "").replace(" ", "").replace("|", "")).unwrap()
+    hex::decode(
+        s.replace("42 00 20 | ", "")
+            .replace(" ", "")
+            .replace("|", ""),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -101,7 +113,9 @@ fn test_spec_ttlv_integer() {
     //
     //   - An Integer containing the decimal value 8:
     //     42 00 20 | 02 | 00 00 00 04 | 00 00 00 08 00 00 00 00
-    let spec_tlv_bytes = spec_ttlv_to_vec_tlv("42 00 20 | 02 | 00 00 00 04 | 00 00 00 08 00 00 00 00");
+    let spec_tlv_bytes = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 02 | 00 00 00 04 | 00 00 00 08 00 00 00 00",
+    );
 
     // Test serialization
     let mut serialized_tlv_bytes = Vec::new();
@@ -119,7 +133,9 @@ fn test_spec_ttlv_integer() {
 fn test_spec_ttlv_long_integer() {
     //   - A Long Integer containing the decimal value 123456789000000000:
     //     42 00 20 | 03 | 00 00 00 08 | 01 B6 9B 4B A5 74 92 00
-    let spec_tlv_bytes = spec_ttlv_to_vec_tlv("42 00 20 | 03 | 00 00 00 08 | 01 B6 9B 4B A5 74 92 00");
+    let spec_tlv_bytes = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 03 | 00 00 00 08 | 01 B6 9B 4B A5 74 92 00",
+    );
 
     // Test serialization
     let mut serialized_tlv_bytes = Vec::new();
@@ -142,9 +158,12 @@ fn test_spec_ttlv_big_integer() {
     //   - A Big Integer containing the decimal value 1234567890000000000000000000:
     //     42 00 20 | 04 | 00 00 00 10 | 00 00 00 00 03 FD 35 EB 6B C2 DF 46 18 08
     //     00 00
-    let spec_tlv_bytes =
-        spec_ttlv_to_vec_tlv("42 00 20 | 04 | 00 00 00 10 | 00 00 00 00 03 FD 35 EB 6B C2 DF 46 18 08 00 00");
-    let big_int = num_bigint::BigInt::parse_bytes(b"1234567890000000000000000000", 10).unwrap();
+    let spec_tlv_bytes = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 04 | 00 00 00 10 | 00 00 00 00 03 FD 35 EB 6B C2 DF 46 18 08 00 00",
+    );
+    let big_int =
+        num_bigint::BigInt::parse_bytes(b"1234567890000000000000000000", 10)
+            .unwrap();
 
     // Test serialization
     let mut serialized_tlv_bytes = Vec::new();
@@ -159,7 +178,10 @@ fn test_spec_ttlv_big_integer() {
     let mut readable_spec_lv_bytes = Cursor::new(&spec_tlv_bytes[1..]);
     let v = TtlvBigInteger::read(&mut readable_spec_lv_bytes);
     assert!(v.is_ok());
-    assert_eq!(big_int, num_bigint::BigInt::from_signed_bytes_be(&(*(v.unwrap()))));
+    assert_eq!(
+        big_int,
+        num_bigint::BigInt::from_signed_bytes_be(&(*(v.unwrap())))
+    );
 }
 
 #[test]
@@ -167,7 +189,9 @@ fn test_spec_ttlv_enumeration() {
     //   - An Enumeration with value 255:
     //     42 00 20 | 05 | 00 00 00 04 | 00 00 00 FF 00 00 00 00
     let mut actual = Vec::new();
-    let expected = spec_ttlv_to_vec_tlv("42 00 20 | 05 | 00 00 00 04 | 00 00 00 FF 00 00 00 00");
+    let expected = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 05 | 00 00 00 04 | 00 00 00 FF 00 00 00 00",
+    );
     TtlvEnumeration(255).write(&mut actual).unwrap();
     assert_eq!(expected, actual);
 }
@@ -177,7 +201,9 @@ fn test_spec_ttlv_boolean() {
     //   - A Boolean with the value True:
     //     42 00 20 | 06 | 00 00 00 08 | 00 00 00 00 00 00 00 01
     let mut actual = Vec::new();
-    let expected = spec_ttlv_to_vec_tlv("42 00 20 | 06 | 00 00 00 08 | 00 00 00 00 00 00 00 01");
+    let expected = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 06 | 00 00 00 08 | 00 00 00 00 00 00 00 01",
+    );
     TtlvBoolean(true).write(&mut actual).unwrap();
     assert_eq!(expected, actual);
 }
@@ -188,9 +214,12 @@ fn test_spec_ttlv_text_string() {
     //     42 00 20 | 07 | 00 00 00 0B | 48 65 6C 6C 6F 20 57 6F 72 6C 64 00 00 00
     //     00 00
     let mut actual = Vec::new();
-    let expected =
-        spec_ttlv_to_vec_tlv("42 00 20 | 07 | 00 00 00 0B | 48 65 6C 6C 6F 20 57 6F 72 6C 64 00 00 00 00 00");
-    TtlvTextString("Hello World".to_string()).write(&mut actual).unwrap();
+    let expected = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 07 | 00 00 00 0B | 48 65 6C 6C 6F 20 57 6F 72 6C 64 00 00 00 00 00",
+    );
+    TtlvTextString("Hello World".to_string())
+        .write(&mut actual)
+        .unwrap();
     assert_eq!(expected, actual);
 }
 
@@ -199,8 +228,12 @@ fn test_spec_ttlv_byte_string() {
     //   - A Byte String with the value { 0x01, 0x02, 0x03 }:
     //     42 00 20 | 08 | 00 00 00 03 | 01 02 03 00 00 00 00 00
     let mut actual = Vec::new();
-    let expected = spec_ttlv_to_vec_tlv("42 00 20 | 08 | 00 00 00 03 | 01 02 03 00 00 00 00 00");
-    TtlvByteString(vec![0x01u8, 0x02u8, 0x03u8]).write(&mut actual).unwrap();
+    let expected = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 08 | 00 00 00 03 | 01 02 03 00 00 00 00 00",
+    );
+    TtlvByteString(vec![0x01u8, 0x02u8, 0x03u8])
+        .write(&mut actual)
+        .unwrap();
     assert_eq!(expected, actual);
 }
 
@@ -209,12 +242,16 @@ fn test_spec_ttlv_date_time() {
     //   - A Date-Time, containing the value for Friday, March 14, 2008, 11:56:40 GMT:
     //     42 00 20 | 09 | 00 00 00 08 | 00 00 00 00 47 DA 67 F8
     let mut actual = Vec::new();
-    let expected = spec_ttlv_to_vec_tlv("42 00 20 | 09 | 00 00 00 08 | 00 00 00 00 47 DA 67 F8");
-    let dt_i64 =
-        chrono::NaiveDateTime::parse_from_str("Friday, March 14, 2008, 11:56:40 GMT", "%A, %B %d, %Y, %H:%M:%S GMT")
-            .unwrap()
-            .and_utc()
-            .timestamp();
+    let expected = spec_ttlv_to_vec_tlv(
+        "42 00 20 | 09 | 00 00 00 08 | 00 00 00 00 47 DA 67 F8",
+    );
+    let dt_i64 = chrono::NaiveDateTime::parse_from_str(
+        "Friday, March 14, 2008, 11:56:40 GMT",
+        "%A, %B %d, %Y, %H:%M:%S GMT",
+    )
+    .unwrap()
+    .and_utc()
+    .timestamp();
     let expected_i64 = i64::from_be_bytes(*b"\x00\x00\x00\x00\x47\xDA\x67\xF8");
     assert_eq!(expected_i64, dt_i64);
     TtlvDateTime(dt_i64).write(&mut actual).unwrap();

@@ -16,6 +16,9 @@ pub(crate) fn make_reader(bytes: Vec<u8>) -> impl std::io::Read {
     std::io::Cursor::new(bytes)
 }
 
-pub(crate) fn make_limited_reader(bytes: Vec<u8>, max_bytes: u64) -> impl std::io::Read {
+pub(crate) fn make_limited_reader(
+    bytes: Vec<u8>,
+    max_bytes: u64,
+) -> impl std::io::Read {
     std::io::Cursor::new(bytes).take(max_bytes)
 }

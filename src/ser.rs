@@ -3,16 +3,20 @@
 use std::{io::Write, str::FromStr};
 
 use serde::{
-    ser::{self, Impossible, SerializeTupleStruct},
     Serialize,
+    ser::{self, Impossible, SerializeTupleStruct},
 };
-use types::{TtlvBoolean, TtlvEnumeration, TtlvInteger, TtlvLength, TtlvLongInteger, TtlvTextString};
+use types::{
+    TtlvBoolean, TtlvEnumeration, TtlvInteger, TtlvLength, TtlvLongInteger,
+    TtlvTextString,
+};
 
 use crate::{
     error::{Error, ErrorLocation, MalformedTtlvError, Result, SerdeError},
     types::{
-        self, ByteOffset, FieldType, SerializableTtlvType, TtlvByteString, TtlvDateTime, TtlvStateMachine,
-        TtlvStateMachineMode, TtlvTag, TtlvType,
+        self, ByteOffset, FieldType, SerializableTtlvType, TtlvByteString,
+        TtlvDateTime, TtlvStateMachine, TtlvStateMachineMode, TtlvTag,
+        TtlvType,
     },
 };
 
@@ -95,13 +99,21 @@ impl TtlvSerializer {
     /// responsible for ensuring that the given tag value is big-endian encoded, i.e.
     /// assert_eq!(0x42007B_u32.to_be_bytes(), [00, 0x42, 0x00, 0x7B]); This will advance the buffer write position
     /// by 3 bytes.
-    fn write_tag(&mut self, item_tag: TtlvTag, set_ignore_next_tag: bool) -> Result<()> {
+    fn write_tag(
+        &mut self,
+        item_tag: TtlvTag,
+        set_ignore_next_tag: bool,
+    ) -> Result<()> {
         if self.advance_state_machine(FieldType::Tag)? {
             if set_ignore_next_tag {
                 let loc = self.location();
-                self.state.ignore_next_tag().map_err(|err| pinpoint!(err, loc))?;
+                self.state
+                    .ignore_next_tag()
+                    .map_err(|err| pinpoint!(err, loc))?;
             }
-            item_tag.write(&mut self.dst).map_err(|err| pinpoint!(err, self))?;
+            item_tag
+                .write(&mut self.dst)
+                .map_err(|err| pinpoint!(err, self))?;
         }
         Ok(())
     }
@@ -110,7 +122,9 @@ impl TtlvSerializer {
     /// 1 byte.
     fn write_type(&mut self, item_type: TtlvType) -> Result<()> {
         if self.advance_state_machine(FieldType::Type)? {
-            item_type.write(&mut self.dst).map_err(|err| pinpoint!(err, self))?;
+            item_type
+                .write(&mut self.dst)
+                .map_err(|err| pinpoint!(err, self))?;
         }
         Ok(())
     }
@@ -137,7 +151,8 @@ impl TtlvSerializer {
             // V by comparing the bookmarked position to our current position in the write buffer, then write that length
             // into the bookmarked L position.
             let len_to_write: u32 = (self.dst.len() - v_start_pos) as u32;
-            let bytes_to_overwrite = &mut self.dst.as_mut_slice()[v_start_pos - 4..v_start_pos];
+            let bytes_to_overwrite =
+                &mut self.dst.as_mut_slice()[v_start_pos - 4..v_start_pos];
             bytes_to_overwrite.copy_from_slice(&len_to_write.to_be_bytes());
         }
         Ok(())
@@ -159,7 +174,9 @@ impl TtlvSerializer {
     }
 
     fn advance_state_machine(&mut self, next_state: FieldType) -> Result<bool> {
-        self.state.advance(next_state).map_err(|err| pinpoint!(err, self))
+        self.state
+            .advance(next_state)
+            .map_err(|err| pinpoint!(err, self))
     }
 }
 
@@ -182,8 +199,13 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     /// in the created TTLV byte sequence. The TTLV tag value to write is taken from the name argument passed to this fn.
     /// When using #[derive(Serialize)] you should use #[serde(rename = "0xAABBCC")] to cause the name argument value
     /// received here to be the TTLV tag value to use when serializing the structure to the write buffer.
-    fn serialize_tuple_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> {
-        let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+    fn serialize_tuple_struct(
+        self,
+        name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleStruct> {
+        let item_tag = TtlvTag::from_str(name)
+            .map_err(|err| pinpoint!(err, self.location()))?;
         self.write_tag(item_tag, false)?;
         self.write_type(TtlvType::Structure)?;
         self.write_zero_len()?;
@@ -299,7 +321,12 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     ///     SomeVariant // = 1,                 Any discriminant value assigned here will be ignored
     /// }
     /// ```
-    fn serialize_unit_variant(self, name: &'static str, _variant_index: u32, variant: &'static str) -> Result<()> {
+    fn serialize_unit_variant(
+        self,
+        name: &'static str,
+        _variant_index: u32,
+        variant: &'static str,
+    ) -> Result<()> {
         // Don't write the tag if we just wrote a tag. This can happen in situations like this:
         //
         //   Tag: Template-Attribute (0x420091), Type: Structure (0x01), Data:
@@ -324,11 +351,14 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         //
         // So in this case we should skip writing out the tag and only write the type, length and value.
 
-        let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+        let item_tag = TtlvTag::from_str(name)
+            .map_err(|err| pinpoint!(err, self.location()))?;
         self.write_tag(item_tag, false)?;
 
         let variant = u32::from_str_radix(variant.trim_start_matches("0x"), 16)
-            .map_err(|_| pinpoint!(SerdeError::InvalidVariant(variant), self.location()))?;
+            .map_err(|_| {
+                pinpoint!(SerdeError::InvalidVariant(variant), self.location())
+            })?;
         variant.serialize(self)
     }
 
@@ -343,7 +373,8 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         // The Override name prefix has no meaning in the case of a tuple variant, it only applies to a single inner
         // tagged value whose tag should be overriden. See serialize_newtype_variant().
         let name = name.strip_prefix("Override:").unwrap_or(name);
-        let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+        let item_tag = TtlvTag::from_str(name)
+            .map_err(|err| pinpoint!(err, self.location()))?;
         self.write_tag(item_tag, false)?;
         self.write_type(TtlvType::Structure)?;
         self.write_zero_len()?;
@@ -363,19 +394,22 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     {
         // If the Override name prefix is present use the tag of this enum when writing the next item instead of that
         // items own tag.
-        let (name, set_ignore_next_tag) = if let Some(name) = name.strip_prefix("Override:") {
-            (name, true)
-        } else {
-            (name, false)
-        };
+        let (name, set_ignore_next_tag) =
+            if let Some(name) = name.strip_prefix("Override:") {
+                (name, true)
+            } else {
+                (name, false)
+            };
 
         // If the variant name is "Transparent" serialize the inner value directly, don't wrap it in a TTLV Structure.
         if variant == "Transparent" {
-            let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+            let item_tag = TtlvTag::from_str(name)
+                .map_err(|err| pinpoint!(err, self.location()))?;
             self.write_tag(item_tag, set_ignore_next_tag)?;
             value.serialize(self)
         } else {
-            let mut ser = self.serialize_tuple_variant(name, variant_index, variant, 1)?;
+            let mut ser =
+                self.serialize_tuple_variant(name, variant_index, variant, 1)?;
             ser.serialize_field(value)?;
             ser.end()
         }
@@ -387,12 +421,17 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     /// We don't use `#[serde(transparent)]` on the structs because then the serialization process would go straight to
     /// functions such as `serialize_i32()` which serialize the V in TTLV but we also need to serialize the TTL part as
     /// well.
-    fn serialize_newtype_struct<T>(self, name: &'static str, value: &T) -> Result<()>
+    fn serialize_newtype_struct<T>(
+        self,
+        name: &'static str,
+        value: &T,
+    ) -> Result<()>
     where
         T: Serialize + ?Sized,
     {
         if let Some(name) = name.strip_prefix("Transparent:") {
-            let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+            let item_tag = TtlvTag::from_str(name)
+                .map_err(|err| pinpoint!(err, self.location()))?;
             self.write_tag(item_tag, false)?;
             value.serialize(self)
         } else {
@@ -415,8 +454,13 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     /// are used to streamline the request construction this can be a way to achieve the best of both worlds: simple
     /// requests based on anonymous fields that are self-evident from their type names, and responses with helpfully
     /// named member fields for cases where there is no need to explicitly name the field type in order to use it.
-    fn serialize_struct(self, name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        let item_tag = TtlvTag::from_str(name).map_err(|err| pinpoint!(err, self.location()))?;
+    fn serialize_struct(
+        self,
+        name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStruct> {
+        let item_tag = TtlvTag::from_str(name)
+            .map_err(|err| pinpoint!(err, self.location()))?;
         self.write_tag(item_tag, false)?;
         self.write_type(TtlvType::Structure)?;
         self.write_zero_len()?;
@@ -500,7 +544,10 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
-        Err(pinpoint!(SerdeError::UnsupportedRustType("unit struct"), self))
+        Err(pinpoint!(
+            SerdeError::UnsupportedRustType("unit struct"),
+            self
+        ))
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
@@ -518,7 +565,10 @@ impl serde::ser::Serializer for &mut TtlvSerializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        Err(pinpoint!(SerdeError::UnsupportedRustType("struct variant"), self))
+        Err(pinpoint!(
+            SerdeError::UnsupportedRustType("struct variant"),
+            self
+        ))
     }
 }
 
@@ -548,7 +598,11 @@ impl ser::SerializeStruct for &mut TtlvSerializer {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
+    fn serialize_field<T>(
+        &mut self,
+        _key: &'static str,
+        value: &T,
+    ) -> Result<()>
     where
         T: Serialize + ?Sized,
     {
@@ -699,7 +753,10 @@ mod test {
 
             #[allow(non_snake_case)]
             fn CryptographicLength(value: i32) -> Self {
-                Attribute(AttributeName("Cryptographic Length"), AttributeValue::Integer(value))
+                Attribute(
+                    AttributeName("Cryptographic Length"),
+                    AttributeValue::Integer(value),
+                )
             }
 
             #[allow(non_snake_case)]
@@ -724,7 +781,10 @@ mod test {
 
         let use_case_input = RequestMessage(
             RequestHeader(
-                ProtocolVersion(ProtocolVersionMajor(1), ProtocolVersionMinor(0)),
+                ProtocolVersion(
+                    ProtocolVersionMajor(1),
+                    ProtocolVersionMinor(0),
+                ),
                 BatchCount(1),
             ),
             vec![BatchItem(
@@ -732,7 +792,9 @@ mod test {
                 RequestPayload(
                     ObjectType::SymmetricKey,
                     TemplateAttribute(vec![
-                        Attribute::CryptographicAlgorithm(CryptographicAlgorithm::AES),
+                        Attribute::CryptographicAlgorithm(
+                            CryptographicAlgorithm::AES,
+                        ),
                         Attribute::CryptographicLength(128),
                         Attribute::CryptographicUsageMask(0x0000_000C),
                     ]),
@@ -806,7 +868,8 @@ mod test {
     }
 
     #[test]
-    fn test_optional_values_that_are_present_are_serialized_as_the_value_directly() {
+    fn test_optional_values_that_are_present_are_serialized_as_the_value_directly()
+     {
         #[derive(Serialize)]
         #[serde(rename = "Transparent:0xAABBCC")]
         struct SomeStruct(Option<i32>);
@@ -828,7 +891,8 @@ mod test {
         struct TransparentItemWithConditionallySerializedOptionalField(
             #[serde(skip_serializing_if = "Option::is_none")] Option<i32>,
         );
-        let transparent_conditional_with_none = TransparentItemWithConditionallySerializedOptionalField(None);
+        let transparent_conditional_with_none =
+            TransparentItemWithConditionallySerializedOptionalField(None);
         assert!(to_vec(&transparent_conditional_with_none).is_err()); // Error: serializing None is not supported.
     }
 
@@ -842,7 +906,8 @@ mod test {
             i32,
             #[serde(skip_serializing_if = "Option::is_none")] Option<i32>,
         );
-        let transparent_tuple_conditional_with_none = TransparentTupleWithConditionallySerializedOptionalField(1, None);
+        let transparent_tuple_conditional_with_none =
+            TransparentTupleWithConditionallySerializedOptionalField(1, None);
         assert!(to_vec(&transparent_tuple_conditional_with_none).is_err()); // Error: "Transparent" is not supported here.
     }
 
@@ -858,9 +923,14 @@ mod test {
         #[serde(rename = "0xAABBCC")]
         struct TupleWithConditionallySerializedOptionalField(
             SomeTaggedValue,
-            #[serde(skip_serializing_if = "Option::is_none")] Option<SomeTaggedValue>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            Option<SomeTaggedValue>,
         );
-        let tuple_conditional_with_none = TupleWithConditionallySerializedOptionalField(SomeTaggedValue(3), None);
+        let tuple_conditional_with_none =
+            TupleWithConditionallySerializedOptionalField(
+                SomeTaggedValue(3),
+                None,
+            );
         assert_eq!(
             "AABBCC010000001012345602000000040000000300000000",
             hex::encode_upper(to_vec(&tuple_conditional_with_none).unwrap()),

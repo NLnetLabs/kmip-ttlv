@@ -26,7 +26,9 @@ pub(crate) enum KeyFormatType {
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
 #[serde(rename = "0x420043")]
 pub(crate) enum KeyMaterial {
-    #[serde(rename(deserialize = "if 0x420042 in [0x00000001, 0x00000002, 0x00000003, 0x00000004, 0x00000006]"))] // Raw, Opaque, PKCS1, PKCS8 or ECPrivateKey
+    #[serde(rename(
+        deserialize = "if 0x420042 in [0x00000001, 0x00000002, 0x00000003, 0x00000004, 0x00000006]"
+    ))] // Raw, Opaque, PKCS1, PKCS8 or ECPrivateKey
     #[serde(rename(serialize = "Transparent"))]
     Bytes(i32),
 
@@ -39,7 +41,7 @@ pub(crate) enum KeyMaterial {
 #[serde(rename = "0x123456")]
 pub(crate) struct SomeKey {
     pub key_format_type: KeyFormatType, // the value encountered when deserializing this field
-    pub key_material: KeyMaterial,      // determines the variant to deserialize into this field
+    pub key_material: KeyMaterial, // determines the variant to deserialize into this field
 }
 
 pub(crate) mod some_transparent_key {

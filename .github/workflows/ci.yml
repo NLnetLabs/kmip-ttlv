@@ -244,5 +244,5 @@ jobs:
         cache: false
     
     # Build and run the test suite.
-    - name: Test
-      run: cargo test --all-targets --all-features
+    - name: Test (synchronous)
+      run: cargo test --all-targets

@@ -54,7 +54,10 @@ fn test_from_diag_string() {
         Tag: 0x420008, Type: Structure (0x01), Data: 
           Tag: 0x42000A, Type: TextString (0x07), Data: <redacted>
           Tag: 0x42000B, Type: Integer (0x02), Data: <redacted>"#;
-    assert_eq!(expected_pretty_str, pretty_printer.from_diag_string(diag_str));
+    assert_eq!(
+        expected_pretty_str,
+        pretty_printer.from_diag_string(diag_str)
+    );
 }
 
 #[test]
@@ -134,5 +137,8 @@ fn test_from_diag_string_with_tag_map() {
         Tag: Attribute (0x420008), Type: Structure (0x01), Data: 
           Tag: Attribute Name (0x42000A), Type: TextString (0x07), Data: <redacted>
           Tag: Attribute Value (0x42000B), Type: Integer (0x02), Data: <redacted>"#;
-    assert_eq!(expected_pretty_str, pretty_printer.from_diag_string(diag_str));
+    assert_eq!(
+        expected_pretty_str,
+        pretty_printer.from_diag_string(diag_str)
+    );
 }

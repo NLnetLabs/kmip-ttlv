@@ -249,10 +249,14 @@ compile_error!(
 );
 
 #[cfg(all(feature = "async-std", not(feature = "async-with-async-std")))]
-compile_error!("do not enable the \"async-std\" feature directly, instead enable the \"async-with-async-std\" feature");
+compile_error!(
+    "do not enable the \"async-std\" feature directly, instead enable the \"async-with-async-std\" feature"
+);
 
 #[cfg(all(feature = "tokio", not(feature = "async-with-tokio")))]
-compile_error!("do not enable the \"tokio\" feature directly, instead enable the \"async-with-tokio\" feature");
+compile_error!(
+    "do not enable the \"tokio\" feature directly, instead enable the \"async-with-tokio\" feature"
+);
 
 #[cfg(feature = "high-level")]
 #[macro_use]

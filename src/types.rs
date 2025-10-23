@@ -54,8 +54,7 @@ use std::{
 /// The type of TTLV header or value field represented by some TTLV bytes.
 ///
 /// This field is also used by the [TtlvStateMachine] to represent the next expected field type or types.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum FieldType {
     #[default]
     Tag,
@@ -66,7 +65,6 @@ pub enum FieldType {
     TypeAndLengthAndValue, // used when serializing
 }
 
-
 impl Display for FieldType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -75,7 +73,9 @@ impl Display for FieldType {
             FieldType::Length => f.write_str("Length"),
             FieldType::Value => f.write_str("Value"),
             FieldType::LengthAndValue => f.write_str("LengthAndValue"),
-            FieldType::TypeAndLengthAndValue => f.write_str("TypeAndLengthAndValue"),
+            FieldType::TypeAndLengthAndValue => {
+                f.write_str("TypeAndLengthAndValue")
+            }
         }
     }
 }
@@ -177,7 +177,8 @@ impl TtlvTag {
     }
 
     pub fn write<T: Write>(&self, dst: &mut T) -> Result<()> {
-        dst.write_all(&<[u8; 3]>::from(self)).map_err(Error::IoError)
+        dst.write_all(&<[u8; 3]>::from(self))
+            .map_err(Error::IoError)
     }
 }
 
@@ -199,8 +200,8 @@ impl FromStr for TtlvTag {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let v =
-            u32::from_str_radix(s.trim_start_matches("0x"), 16).map_err(|_| Error::InvalidTtlvTag(s.to_string()))?;
+        let v = u32::from_str_radix(s.trim_start_matches("0x"), 16)
+            .map_err(|_| Error::InvalidTtlvTag(s.to_string()))?;
         Ok(TtlvTag(v))
     }
 }
@@ -576,8 +577,8 @@ impl SerializableTtlvType for TtlvBigInteger {
         let num_pad_bytes = Self::calc_pad_bytes(v_len);
         let v_len = v_len + num_pad_bytes;
         dst.write_all(&v_len.to_be_bytes())?; // Write L_ength
-                                              // Write pad bytes out as leading sign extending bytes, i.e. if the sign is positive then pad with zeros
-                                              // otherwise pad with ones.
+        // Write pad bytes out as leading sign extending bytes, i.e. if the sign is positive then pad with zeros
+        // otherwise pad with ones.
         let pad_byte = if v_len > 0 && v[0] & 0b1000_0000 == 0b1000_0000 {
             0b1111_1111
         } else {
@@ -689,7 +690,8 @@ impl SerializableTtlvType for TtlvTextString {
 
         // Use the bytes as-is as the internal buffer for a String, verifying that the bytes are indeed valid
         // UTF-8
-        let new_str = String::from_utf8(dst).map_err(|_| Error::InvalidTtlvValue(Self::TTLV_TYPE))?;
+        let new_str = String::from_utf8(dst)
+            .map_err(|_| Error::InvalidTtlvValue(Self::TTLV_TYPE))?;
 
         Ok(TtlvTextString(new_str))
     }
@@ -791,39 +793,58 @@ impl TtlvStateMachine {
         }
     }
 
-    pub fn advance(&mut self, next_field_type: FieldType) -> std::result::Result<bool, Error> {
+    pub fn advance(
+        &mut self,
+        next_field_type: FieldType,
+    ) -> std::result::Result<bool, Error> {
         use TtlvStateMachineMode as Mode;
 
-        let next_expected_next_field_type = match (self.mode, self.expected_next_field_type, next_field_type) {
-            // First, the normal cases: expect a certain field type to be written next and that is what is indicated
-            (_, FieldType::Tag, FieldType::Tag) => FieldType::Type,
-            (_, FieldType::Type, FieldType::Type) => FieldType::Length,
-            (Mode::Serializing, FieldType::Type, FieldType::TypeAndLengthAndValue) => FieldType::Tag,
-            (_, FieldType::Length, FieldType::Length) => FieldType::Value,
-            (Mode::Deserializing, FieldType::Length, FieldType::LengthAndValue) => FieldType::Tag,
-            (_, FieldType::Value, FieldType::Value) => FieldType::Tag,
+        let next_expected_next_field_type =
+            match (self.mode, self.expected_next_field_type, next_field_type) {
+                // First, the normal cases: expect a certain field type to be written next and that is what is indicated
+                (_, FieldType::Tag, FieldType::Tag) => FieldType::Type,
+                (_, FieldType::Type, FieldType::Type) => FieldType::Length,
+                (
+                    Mode::Serializing,
+                    FieldType::Type,
+                    FieldType::TypeAndLengthAndValue,
+                ) => FieldType::Tag,
+                (_, FieldType::Length, FieldType::Length) => FieldType::Value,
+                (
+                    Mode::Deserializing,
+                    FieldType::Length,
+                    FieldType::LengthAndValue,
+                ) => FieldType::Tag,
+                (_, FieldType::Value, FieldType::Value) => FieldType::Tag,
 
-            // In the leaf case a V always follows TTL, but higher in the TTLV structure hierarchy the first item in
-            // a structure can be another TTLV item (i.e. we see a tag being written instead of a value)
-            (_, FieldType::Value, FieldType::Tag) => FieldType::Type,
+                // In the leaf case a V always follows TTL, but higher in the TTLV structure hierarchy the first item in
+                // a structure can be another TTLV item (i.e. we see a tag being written instead of a value)
+                (_, FieldType::Value, FieldType::Tag) => FieldType::Type,
 
-            // Special case: we've been explicitly asked after writing a tag to ignore a subsequent attempt to write
-            // another tag. Normally attempting to write TT would be an error, but in this case the second T should be
-            // silently ignored. This supports use cases like the KMIP Attribute Value which is of the form XTLV where
-            // X is constant tag value and not the normal tag associated with the item being serialized.
-            (Mode::Serializing, FieldType::Type, FieldType::Tag) if self.ignore_next_tag => {
-                self.ignore_next_tag = false;
-                FieldType::Type
-            }
+                // Special case: we've been explicitly asked after writing a tag to ignore a subsequent attempt to write
+                // another tag. Normally attempting to write TT would be an error, but in this case the second T should be
+                // silently ignored. This supports use cases like the KMIP Attribute Value which is of the form XTLV where
+                // X is constant tag value and not the normal tag associated with the item being serialized.
+                (Mode::Serializing, FieldType::Type, FieldType::Tag)
+                    if self.ignore_next_tag =>
+                {
+                    self.ignore_next_tag = false;
+                    FieldType::Type
+                }
 
-            // Error, don't permit invalid things like TTVL etc.
-            (_, expected, actual) => {
-                return Err(Error::UnexpectedTtlvField { expected, actual });
-            }
-        };
+                // Error, don't permit invalid things like TTVL etc.
+                (_, expected, actual) => {
+                    return Err(Error::UnexpectedTtlvField {
+                        expected,
+                        actual,
+                    });
+                }
+            };
 
         // Advance the state machine if needed
-        if self.mode == Mode::Deserializing || next_expected_next_field_type != self.expected_next_field_type {
+        if self.mode == Mode::Deserializing
+            || next_expected_next_field_type != self.expected_next_field_type
+        {
             self.expected_next_field_type = next_expected_next_field_type;
             Ok(true)
         } else {

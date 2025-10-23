@@ -51,14 +51,19 @@ impl Display for Error {
                 self.location
             )),
             ErrorKind::ResponseSizeExceedsLimit(size) => {
-                f.write_fmt(format_args!("Response size {} exceeds the configured limit", size))
+                f.write_fmt(format_args!(
+                    "Response size {} exceeds the configured limit",
+                    size
+                ))
             }
-            ErrorKind::MalformedTtlv(error) => {
-                f.write_fmt(format_args!("Malformed TTLV: {:?} (at {})", error, self.location))
-            }
-            ErrorKind::SerdeError(error) => {
-                f.write_fmt(format_args!("Serde error : {:?} (at {})", error, self.location))
-            }
+            ErrorKind::MalformedTtlv(error) => f.write_fmt(format_args!(
+                "Malformed TTLV: {:?} (at {})",
+                error, self.location
+            )),
+            ErrorKind::SerdeError(error) => f.write_fmt(format_args!(
+                "Serde error : {:?} (at {})",
+                error, self.location
+            )),
         }
     }
 }
@@ -75,7 +80,11 @@ impl Error {
         }
     }
 
-    pub(crate) fn pinpoint_with_tag<T, L>(error: T, location: L, tag: TtlvTag) -> Self
+    pub(crate) fn pinpoint_with_tag<T, L>(
+        error: T,
+        location: L,
+        tag: TtlvTag,
+    ) -> Self
     where
         ErrorKind: From<T>,
         ErrorLocation: From<L>,
@@ -86,14 +95,21 @@ impl Error {
         }
     }
 
-    pub(crate) fn pinpoint_with_tag_and_type<T, L>(error: T, location: L, tag: TtlvTag, r#type: TtlvType) -> Self
+    pub(crate) fn pinpoint_with_tag_and_type<T, L>(
+        error: T,
+        location: L,
+        tag: TtlvTag,
+        r#type: TtlvType,
+    ) -> Self
     where
         ErrorKind: From<T>,
         ErrorLocation: From<L>,
     {
         Self {
             kind: error.into(),
-            location: ErrorLocation::from(location).with_tag(tag).with_type(r#type),
+            location: ErrorLocation::from(location)
+                .with_tag(tag)
+                .with_type(r#type),
         }
     }
 }
@@ -130,11 +146,20 @@ impl From<types::Error> for ErrorKind {
         match err {
             types::Error::IoError(e) => Self::IoError(e),
             types::Error::UnexpectedTtlvField { expected, actual } => {
-                Self::MalformedTtlv(MalformedTtlvError::UnexpectedTtlvField { expected, actual })
+                Self::MalformedTtlv(MalformedTtlvError::UnexpectedTtlvField {
+                    expected,
+                    actual,
+                })
             }
-            types::Error::InvalidTtlvTag(v) => Self::SerdeError(SerdeError::InvalidTag(v)),
-            types::Error::UnsupportedTtlvType(v) => Self::MalformedTtlv(MalformedTtlvError::UnsupportedType(v)),
-            types::Error::InvalidTtlvType(v) => Self::MalformedTtlv(MalformedTtlvError::InvalidType(v)),
+            types::Error::InvalidTtlvTag(v) => {
+                Self::SerdeError(SerdeError::InvalidTag(v))
+            }
+            types::Error::UnsupportedTtlvType(v) => {
+                Self::MalformedTtlv(MalformedTtlvError::UnsupportedType(v))
+            }
+            types::Error::InvalidTtlvType(v) => {
+                Self::MalformedTtlv(MalformedTtlvError::InvalidType(v))
+            }
             types::Error::InvalidTtlvValueLength {
                 expected,
                 actual,
@@ -144,10 +169,14 @@ impl From<types::Error> for ErrorKind {
                 actual,
                 r#type,
             }),
-            types::Error::InvalidTtlvValue(r#type) => Self::MalformedTtlv(MalformedTtlvError::InvalidValue { r#type }),
-            types::Error::InvalidStateMachineOperation => Self::SerdeError(SerdeError::Other(
-                "Internal error: invalid state machine operaiton".into(),
-            )),
+            types::Error::InvalidTtlvValue(r#type) => {
+                Self::MalformedTtlv(MalformedTtlvError::InvalidValue { r#type })
+            }
+            types::Error::InvalidStateMachineOperation => {
+                Self::SerdeError(SerdeError::Other(
+                    "Internal error: invalid state machine operaiton".into(),
+                ))
+            }
         }
     }
 }
@@ -260,7 +289,11 @@ impl Display for ErrorLocation {
         }
         if !self.parent_tags.is_empty() {
             let mut iter = self.parent_tags.iter();
-            f.write_fmt(format_args!("{}parent tags: {}", sep(), iter.next().unwrap()))?;
+            f.write_fmt(format_args!(
+                "{}parent tags: {}",
+                sep(),
+                iter.next().unwrap()
+            ))?;
             for tag in iter {
                 f.write_fmt(format_args!(" > {}", tag))?
             }
@@ -327,7 +360,12 @@ impl ErrorLocation {
 
     pub fn is_unknown(&self) -> bool {
         matches!(
-            (self.offset, self.parent_tags.is_empty(), self.tag, self.r#type),
+            (
+                self.offset,
+                self.parent_tags.is_empty(),
+                self.tag,
+                self.r#type
+            ),
             (None, true, None, None)
         )
     }
@@ -372,12 +410,18 @@ pub enum MalformedTtlvError {
     Overflow { field_end: ByteOffset },
 
     /// The TTLV field being read/written is out of sequence (e.g. TLVV, VLTL, etc.).
-    UnexpectedTtlvField { expected: FieldType, actual: FieldType },
+    UnexpectedTtlvField {
+        expected: FieldType,
+        actual: FieldType,
+    },
 
     /// The TTLV type being read/written is not correct at this location.
     ///
     /// For example, all TTLV sequences must start with a TTLV Structure.
-    UnexpectedType { expected: TtlvType, actual: TtlvType },
+    UnexpectedType {
+        expected: TtlvType,
+        actual: TtlvType,
+    },
 
     /// The TTLV type byte value being read/written is valid but not supported.
     UnsupportedType(u8),
@@ -438,7 +482,10 @@ pub enum SerdeError {
 
     /// The TTLV type of the value being deserialized does not match the type of the Rust data structure field being
     /// deserialized into.
-    UnexpectedType { expected: TtlvType, actual: TtlvType },
+    UnexpectedType {
+        expected: TtlvType,
+        actual: TtlvType,
+    },
 
     /// The TTLV type of the value being deserialized is not supported yet by the deserializer.
     UnsupportedRustType(&'static str),
