@@ -148,7 +148,7 @@
 //!   see below for a special note about `None`)_.
 //!
 //! - The following Rust types **CANNOT** be _deserialized_ from TTLV: `()`, `u8`, `u16`, `u32`, `u64`, `i8`, `i16`,
-//!  `f32`, `f64`, `char`, `str`, map, `&[u8]`, `()`. `char`,
+//!   `f32`, `f64`, `char`, `str`, map, `&[u8]`, `()`. `char`,
 //!
 //! - The following TTLV types **CANNOT** _yet_ be serialized to TTLV: Big Integer (0x04), Interval (0x0A).
 //!
@@ -244,7 +244,9 @@
     feature = "sync",
     any(feature = "async-with-async-std", feature = "async-with-tokio")
 ))]
-compile_error!("feature \"sync\" cannot be enabled at the same time as either of the \"async-with-async-std\" or \"async-with-tokio\" features");
+compile_error!(
+    "feature \"sync\" cannot be enabled at the same time as either of the \"async-with-async-std\" or \"async-with-tokio\" features"
+);
 
 #[cfg(all(feature = "async-std", not(feature = "async-with-async-std")))]
 compile_error!("do not enable the \"async-std\" feature directly, instead enable the \"async-with-async-std\" feature");
@@ -270,7 +272,7 @@ pub mod util;
 
 #[cfg(feature = "high-level")]
 #[doc(inline)]
-pub use de::{from_reader, from_slice, Config};
+pub use de::{Config, from_reader, from_slice};
 
 #[cfg(feature = "high-level")]
 #[doc(inline)]
