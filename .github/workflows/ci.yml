@@ -204,7 +204,7 @@ jobs:
 
     # Do the actually Clippy run.
     - name: Check Clippy
-      run: cargo +nightly clippy --all-targets
+      run: cargo +nightly clippy --all-targets --all-features
 
   # Test
   # ----
@@ -245,4 +245,4 @@ jobs:
     
     # Build and run the test suite.
     - name: Test (synchronous)
-      run: cargo test --all-targets
+      run: cargo test --all-targets --all-features
