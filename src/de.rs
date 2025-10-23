@@ -12,17 +12,11 @@ use std::{
 
 use serde::{
     Deserialize, Deserializer,
-    de::{
-        DeserializeOwned, EnumAccess, MapAccess, SeqAccess, VariantAccess,
-        Visitor,
-    },
+    de::{EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
 };
 
 use crate::{
-    error::{
-        Error, ErrorKind, ErrorLocation, MalformedTtlvError, Result, SerdeError,
-    },
-    traits::AnySyncRead,
+    error::{Error, ErrorLocation, MalformedTtlvError, Result, SerdeError},
     types::{
         self, FieldType, SerializableTtlvType, TtlvBigInteger, TtlvBoolean,
         TtlvByteString, TtlvDateTime, TtlvEnumeration, TtlvInteger, TtlvLength,
@@ -112,128 +106,6 @@ where
     let cursor = &mut Cursor::new(bytes);
     let mut deserializer = TtlvDeserializer::from_slice(cursor);
     T::deserialize(&mut deserializer)
-}
-
-/// Read and deserialize bytes from the given reader.
-///
-/// Note: Also accepts a mut reference.
-///
-/// Attempting to process a stream whose initial TTL header length value is larger the config max_bytes, if any, will
-/// result in`Error::ResponseSizeExceedsLimit`.
-#[maybe_async::maybe_async]
-pub async fn from_reader<T, R>(mut reader: R, config: &Config) -> Result<T>
-where
-    T: DeserializeOwned,
-    R: AnySyncRead,
-{
-    // When reading from a stream we don't know how many bytes to read until we've read the L of the first TTLV in
-    // the response stream. As the current implementation jumps around in the response bytes while parsing (see
-    // calls to set_position()), and requiring the caller to provider a Seek capable stream would be quite onerous,
-    // and as we're not trying to be super efficient as HSMs are typically quite slow anywa, just read the bytes into a
-    // Vec and then parse it from there. We can't just call read_to_end() because that can cause the response reading to
-    // block if the server doesn't close the connection after writing the response bytes (e.g. PyKMIP behaves this way).
-    // We know from the TTLV specification that the initial TTL bytes must be 8 bytes long (3-byte tag, 1-byte type,
-    // 4-byte length) so we attempt read to this "magic header" from the given stream.
-
-    fn cur_pos(buf_len: u64) -> ErrorLocation {
-        ErrorLocation::from(buf_len)
-    }
-
-    let max_bytes = config.max_bytes();
-
-    // Interior mutability access dance
-    // --------------------------------
-    // The Config object can optionally have its own buffer which we will write the read bytes into. This then allows
-    // the caller to log or save or pretty print those bytes or avoid allocating a new buffer on every read, or
-    // whatever the caller wants to do with them.
-    //
-    // We could take a buffer as an argument but that would complicate the default use case. We could also take a
-    // mutable reference to the Config object but then we'd appear to have the ability to alter the configuration
-    // settings which is not right. So instead we use the interior mutability pattern to get a mutable reference to
-    // just the buffer owned by the Config object, not the entire Config object. However, to write to the Config object
-    // buffer if available or otherwise to a local buffer requires a bit of a dance to get satisfy the Rust compiler
-    // borrow checker.
-    let mut buf_bytes;
-    let mut config_buf = config.read_buf();
-    let mut buf: &mut Vec<u8> = if let Some(ref mut buf) = config_buf {
-        // Use the buffer provided by the Config object.
-        buf
-    } else {
-        // Create and use our own temporary buffer.
-        buf_bytes = Vec::new();
-        &mut buf_bytes
-    };
-
-    // Greedy closure capturing:
-    // -------------------------
-    // Note: In the read_xxx() calls below we take the cursor.position() _before_ the read because otherwise, in Rust
-    // 2018 Edition, the closure captures the cursor causing compilation to fail due to multiple mutable borrows of fhe
-    // cursor. Rust 2021 Edition implements so-called "Disjoint capture in closures" which may eliminate this problem.
-    // See: https://doc.rust-lang.org/nightly/edition-guide/rust-2021/disjoint-capture-in-closures.html
-
-    // Read the bytes of the first TTL (3 byte tag, 1 byte type, 4 byte len)
-    buf.resize(8, 0);
-    let response_size;
-    let tag;
-    let r#type;
-    {
-        let mut state =
-            TtlvStateMachine::new(TtlvStateMachineMode::Deserializing);
-        reader
-            .read_exact(buf)
-            .await
-            .map_err(|err| pinpoint!(err, cur_pos(0)))?;
-
-        // Extract and verify the first T (tag)
-        let mut cursor = Cursor::new(&mut buf);
-        let buf_len = cursor.position();
-        tag = TtlvDeserializer::read_tag(&mut cursor, Some(&mut state))
-            .map_err(|err| pinpoint!(err, cur_pos(buf_len)))?;
-
-        // Extract and verify the second T (type)
-        let buf_len = cursor.position();
-        r#type = TtlvDeserializer::read_type(&mut cursor, Some(&mut state))
-            .map_err(|err| pinpoint!(err, cur_pos(buf_len), tag))?;
-
-        // Extract and verify the L (value length)
-        let buf_len = cursor.position();
-        let additional_len =
-            TtlvDeserializer::read_length(&mut cursor, Some(&mut state))
-                .map_err(|err| pinpoint!(err, cur_pos(buf_len), tag, r#type))?;
-
-        // ------------------------------------------------------------------------------------------
-        // Now read the value bytes of the first TTLV item (i.e. the rest of the entire TTLV message)
-        // ------------------------------------------------------------------------------------------
-
-        // The number of bytes to allocate is determined by the data being read. It could be a gazillion bytes and we'd
-        // panic trying to allocate it. The caller is therefore advised to define an upper bound if the source cannot be
-        // trusted.
-        let buf_len = cursor.position();
-        response_size = buf_len + (additional_len as u64);
-        if let Some(max_bytes) = max_bytes {
-            if response_size > (max_bytes as u64) {
-                let error =
-                    ErrorKind::ResponseSizeExceedsLimit(response_size as usize);
-                let location =
-                    ErrorLocation::from(cursor).with_tag(tag).with_type(r#type);
-                return Err(Error::pinpoint(error, location));
-            }
-        }
-    }
-
-    // Warning: this will panic if it fails to allocate the requested amount of memory, at least until try_reserve() is
-    // stabilized!
-    buf.resize(response_size as usize, 0);
-    reader.read_exact(&mut buf[8..]).await.map_err(|err| {
-        Error::pinpoint(
-            err,
-            ErrorLocation::from(buf.len())
-                .with_tag(tag)
-                .with_type(r#type),
-        )
-    })?;
-
-    from_slice(buf)
 }
 
 // --- Private implementation details ----------------------------------------------------------------------------------

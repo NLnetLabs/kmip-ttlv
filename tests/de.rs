@@ -3,22 +3,17 @@
 // TOOD: do "use ... as fix" instead of "use ... ::*", then refer to xxx to make it clear what comes from the fixtures.
 
 use kmip_ttlv::error::{ErrorKind, MalformedTtlvError, SerdeError};
+use kmip_ttlv::from_slice;
 use kmip_ttlv::types::{
     ByteOffset, SerializableTtlvType, TtlvBigInteger, TtlvBoolean,
     TtlvByteString, TtlvDateTime, TtlvEnumeration, TtlvInteger,
     TtlvLongInteger, TtlvTag, TtlvTextString, TtlvType,
 };
-use kmip_ttlv::{Config, from_reader, from_slice};
 
 mod fixtures;
-mod helpers;
 mod util;
 
 use assert_matches::assert_matches;
-use helpers::{
-    make_limited_reader, make_reader, no_response_size_limit,
-    reject_if_response_larger_than,
-};
 
 #[allow(unused_imports)]
 use pretty_assertions::{assert_eq, assert_ne};
@@ -84,47 +79,6 @@ fn test_is_variant_applicable_if_not_matched() {
     use fixtures::variant_selection::*;
     let res = from_slice::<SomeKey>(&some_unknown_key_type::ttlv_bytes());
     assert!(res.is_err());
-}
-
-#[test]
-fn test_io_error_insufficient_read_buffer_size() {
-    use fixtures::simple::*;
-
-    let full_input_byte_len = ttlv_bytes().len();
-
-    // sanity check
-    assert!(
-        from_reader::<RootType, _>(
-            make_reader(ttlv_bytes()),
-            &no_response_size_limit()
-        )
-        .is_ok()
-    );
-
-    // limit the read buffer to several insufficient lengths
-    for max_readable_bytes in &[0, 1, 2, 10] {
-        let res = from_reader::<RootType, _>(
-            make_reader(ttlv_bytes()),
-            &reject_if_response_larger_than(*max_readable_bytes),
-        );
-
-        assert_matches!(res.unwrap_err().kind(), ErrorKind::ResponseSizeExceedsLimit(len) if len == &full_input_byte_len);
-    }
-}
-
-#[test]
-fn test_io_error_unexpected_eof_with_reader() {
-    use fixtures::simple::*;
-
-    for max_readable_bytes in &[0, 1, 2, 10] {
-        let err = from_reader::<RootType, _>(
-            make_limited_reader(ttlv_bytes(), *max_readable_bytes),
-            &Config::default(),
-        )
-        .unwrap_err();
-
-        assert_matches!(err.kind(), ErrorKind::IoError(io_error) if io_error.kind() == std::io::ErrorKind::UnexpectedEof);
-    }
 }
 
 #[test]

@@ -79,39 +79,6 @@ impl Error {
             location: location.into(),
         }
     }
-
-    pub(crate) fn pinpoint_with_tag<T, L>(
-        error: T,
-        location: L,
-        tag: TtlvTag,
-    ) -> Self
-    where
-        ErrorKind: From<T>,
-        ErrorLocation: From<L>,
-    {
-        Self {
-            kind: error.into(),
-            location: ErrorLocation::from(location).with_tag(tag),
-        }
-    }
-
-    pub(crate) fn pinpoint_with_tag_and_type<T, L>(
-        error: T,
-        location: L,
-        tag: TtlvTag,
-        r#type: TtlvType,
-    ) -> Self
-    where
-        ErrorKind: From<T>,
-        ErrorLocation: From<L>,
-    {
-        Self {
-            kind: error.into(),
-            location: ErrorLocation::from(location)
-                .with_tag(tag)
-                .with_type(r#type),
-        }
-    }
 }
 
 // --- ErrorKind ------------------------------------------------------------------------------------------------------
