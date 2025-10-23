@@ -1,17 +1,19 @@
 [package]
 name = "kmip-ttlv"
-version = "0.3.6-dev"
+version = "0.4.0-dev"
+
+rust-version = "1.85.0"
+edition = "2024"
+
 authors = ["NLnet Labs <rpki-team@nlnetlabs.nl>"]
-edition = "2018"
-description = "KMIP TTLV (de)serialization"
-license = "BSD-3-Clause"
+description = "An implementation of the KMIP TTLV format."
 repository = "https://github.com/NLnetLabs/kmip-ttlv/"
-documentation = "https://docs.rs/kmip-ttlv/"
+license = "BSD-3-Clause"
 keywords = ["KMIP", "TTLV", "serde", "serialization"]
 categories = ["cryptography", "data-structures", "encoding", "parser-implementations"]
-exclude = ["/.github"]
+
 readme = "README.md"
-build = "build.rs"
+exclude = ["/.github"]
 
 [dependencies]
 async-std = { version = "1.10.0", optional = true }
@@ -28,9 +30,6 @@ high-level = ["hex", "serde"]
 sync = ["maybe-async/is_sync"]
 async-with-async-std = ["async-std"]
 async-with-tokio = ["tokio"]
-
-[build-dependencies]
-rustc_version   = "0.4.0"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
