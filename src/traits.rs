@@ -9,16 +9,16 @@
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "sync")] {
-        trait_set::trait_set! {
-            pub trait AnySyncRead = std::io::Read;
-        }
+        pub trait AnySyncRead: std::io::Read {}
+
+        impl<T: ?Sized + std::io::Read> AnySyncRead for T {}
     } else if #[cfg(feature = "async-with-tokio")] {
-        trait_set::trait_set! {
-            pub trait AnySyncRead = tokio::io::AsyncReadExt + std::marker::Unpin;
-        }
+        pub trait AnySyncRead: tokio::io::AsyncReadExt + std::marker::Unpin {}
+
+        impl<T: ?Sized + tokio::io::AsyncReadExt + std::marker::Unpin> AnySyncRead for T {}
     } else if #[cfg(feature = "async-with-async-std")] {
-        trait_set::trait_set! {
-            pub trait AnySyncRead = async_std::io::ReadExt + std::marker::Unpin;
-        }
+        pub trait AnySyncRead: async_std::io::ReadExt + std::marker::Unpin {}
+
+        impl<T: ?Sized + async_std::io::ReadExt + std::marker::Unpin> AnySyncRead for T {}
     }
 }
