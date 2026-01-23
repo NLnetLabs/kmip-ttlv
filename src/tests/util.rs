@@ -7,8 +7,7 @@ use crate::{types::TtlvTag, PrettyPrinter};
 
 #[test]
 fn test_from_diag_string() {
-    let mut pretty_printer = PrettyPrinter::default();
-    pretty_printer.with_tag_prefix("4200".into());
+    let pretty_printer = PrettyPrinter::default().with_tag_prefix("4200".into());
 
     let diag_str = "78[77[69[6Ai6Bi]0C[23[24e1:25[99tA1t]]]0Di]0F[5Ce2:79[1F[08[0At0Be4:]08[0At0Bi]]65[08[0At0B[55t54e1:]]08[0At0Bi]]6E[08[0At0B[55t54e1:]]08[0At0Bi]]]]]";
 
@@ -86,9 +85,9 @@ fn test_from_diag_string_with_tag_map() {
     .into_iter()
     .collect();
 
-    let mut pretty_printer = PrettyPrinter::default();
-    pretty_printer.with_tag_prefix("4200".into());
-    pretty_printer.with_tag_map(tag_map);
+    let pretty_printer = PrettyPrinter::default()
+        .with_tag_prefix("4200".into())
+        .with_tag_map(tag_map);
 
     let diag_str = "78[77[69[6Ai6Bi]0C[23[24e1:25[99tA1t]]]0Di]0F[5Ce2:79[1F[08[0At0Be4:]08[0At0Bi]]65[08[0At0B[55t54e1:]]08[0At0Bi]]6E[08[0At0B[55t54e1:]]08[0At0Bi]]]]]";
 
