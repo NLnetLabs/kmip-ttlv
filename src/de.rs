@@ -1,7 +1,7 @@
 //! High-level Serde based deserialization of TTLV bytes to Rust data types.
 
 use std::{
-    cell::{RefCell, RefMut},
+    cell::RefCell,
     cmp::Ordering,
     collections::HashMap,
     io::{Cursor, Read},
@@ -30,23 +30,10 @@ use crate::{
 /// Configuration settings used by the deserializer.
 ///
 /// May in future also be used by the serializer.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Config {
     max_bytes: Option<u32>,
-    read_buf: Option<RefCell<Vec<u8>>>,
-}
-
-impl Clone for Config {
-    fn clone(&self) -> Self {
-        Self {
-            max_bytes: self.max_bytes,
-            read_buf: if self.has_buf() {
-                Some(RefCell::new(Vec::new()))
-            } else {
-                None
-            },
-        }
-    }
+    capture: bool,
 }
 
 impl Config {
@@ -61,14 +48,9 @@ impl Config {
         self.max_bytes
     }
 
-    /// Has a persistent read buffer been configured for reading response bytes into?
-    pub fn has_buf(&self) -> bool {
-        self.read_buf.is_some()
-    }
-
-    /// Get mutable access to optional persistent response bytes buffer
-    pub fn read_buf(&self) -> Option<RefMut<Vec<u8>>> {
-        self.read_buf.as_ref().map(|buf| buf.borrow_mut())
+    /// Should request and response bytes be captured for diagnostic purposes?
+    pub fn capture(&self) -> bool {
+        self.capture
     }
 }
 
@@ -85,16 +67,9 @@ impl Config {
         }
     }
 
-    /// Save the read response bytes into a buffer for use later.
-    ///
-    /// Allocate a persistent buffer that can be used by a reader to store the read response bytes into. This could be
-    /// to avoid allocating a buffer for every response read, or to permit logging or storing or pretty printing of the
-    /// response bytes once they have been read from the source.
-    pub fn with_read_buf(self) -> Self {
-        Self {
-            read_buf: Some(RefCell::new(Vec::new())),
-            ..self
-        }
+    /// Enable capturing of request and response bytes for diagnostic purposes
+    pub fn with_capture(self) -> Self {
+        Self { capture: true, ..self }
     }
 }
 
@@ -115,7 +90,7 @@ where
 /// Attempting to process a stream whose initial TTL header length value is larger the config max_bytes, if any, will
 /// result in`Error::ResponseSizeExceedsLimit`.
 #[maybe_async::maybe_async]
-pub async fn from_reader<T, R>(mut reader: R, config: &Config) -> Result<T>
+pub async fn from_reader<T, R>(mut reader: R, config: &Config) -> std::result::Result<(T, Vec<u8>), (Error, Vec<u8>)>
 where
     T: DeserializeOwned,
     R: AnySyncRead,
@@ -147,16 +122,12 @@ where
     // just the buffer owned by the Config object, not the entire Config object. However, to write to the Config object
     // buffer if available or otherwise to a local buffer requires a bit of a dance to get satisfy the Rust compiler
     // borrow checker.
-    let mut buf_bytes;
-    let mut config_buf = config.read_buf();
-    let mut buf: &mut Vec<u8> = if let Some(ref mut buf) = config_buf {
-        // Use the buffer provided by the Config object.
-        buf
+    let mut buf_bytes = if let Some(max_bytes) = max_bytes {
+        Vec::with_capacity(max_bytes as usize)
     } else {
-        // Create and use our own temporary buffer.
-        buf_bytes = Vec::new();
-        &mut buf_bytes
+        Vec::new()
     };
+    let mut buf = &mut buf_bytes;
 
     // Greedy closure capturing:
     // -------------------------
@@ -172,23 +143,37 @@ where
     let r#type;
     {
         let mut state = TtlvStateMachine::new(TtlvStateMachineMode::Deserializing);
-        reader.read_exact(buf).await.map_err(|err| pinpoint!(err, cur_pos(0)))?;
+        if let Err(err) = reader.read_exact(buf).await.map_err(|err| pinpoint!(err, cur_pos(0))) {
+            return Err((err, buf_bytes));
+        }
 
         // Extract and verify the first T (tag)
         let mut cursor = Cursor::new(&mut buf);
         let buf_len = cursor.position();
-        tag = TtlvDeserializer::read_tag(&mut cursor, Some(&mut state))
-            .map_err(|err| pinpoint!(err, cur_pos(buf_len)))?;
+        tag = match TtlvDeserializer::read_tag(&mut cursor, Some(&mut state))
+            .map_err(|err| pinpoint!(err, cur_pos(buf_len)))
+        {
+            Ok(res) => res,
+            Err(err) => return Err((err, buf_bytes)),
+        };
 
         // Extract and verify the second T (type)
         let buf_len = cursor.position();
-        r#type = TtlvDeserializer::read_type(&mut cursor, Some(&mut state))
-            .map_err(|err| pinpoint!(err, cur_pos(buf_len), tag))?;
+        r#type = match TtlvDeserializer::read_type(&mut cursor, Some(&mut state))
+            .map_err(|err| pinpoint!(err, cur_pos(buf_len), tag))
+        {
+            Ok(res) => res,
+            Err(err) => return Err((err, buf_bytes)),
+        };
 
         // Extract and verify the L (value length)
         let buf_len = cursor.position();
-        let additional_len = TtlvDeserializer::read_length(&mut cursor, Some(&mut state))
-            .map_err(|err| pinpoint!(err, cur_pos(buf_len), tag, r#type))?;
+        let additional_len = match TtlvDeserializer::read_length(&mut cursor, Some(&mut state))
+            .map_err(|err| pinpoint!(err, cur_pos(buf_len), tag, r#type))
+        {
+            Ok(res) => res,
+            Err(err) => return Err((err, buf_bytes)),
+        };
 
         // ------------------------------------------------------------------------------------------
         // Now read the value bytes of the first TTLV item (i.e. the rest of the entire TTLV message)
@@ -203,7 +188,7 @@ where
             if response_size > (max_bytes as u64) {
                 let error = ErrorKind::ResponseSizeExceedsLimit(response_size as usize);
                 let location = ErrorLocation::from(cursor).with_tag(tag).with_type(r#type);
-                return Err(Error::pinpoint(error, location));
+                return Err((Error::pinpoint(error, location), buf_bytes));
             }
         }
     }
@@ -211,12 +196,18 @@ where
     // Warning: this will panic if it fails to allocate the requested amount of memory, at least until try_reserve() is
     // stabilized!
     buf.resize(response_size as usize, 0);
-    reader
+    if let Err(err) = reader
         .read_exact(&mut buf[8..])
         .await
-        .map_err(|err| Error::pinpoint(err, ErrorLocation::from(buf.len()).with_tag(tag).with_type(r#type)))?;
+        .map_err(|err| Error::pinpoint(err, ErrorLocation::from(buf.len()).with_tag(tag).with_type(r#type)))
+    {
+        return Err((err, buf_bytes));
+    }
 
-    from_slice(buf)
+    match from_slice(buf) {
+        Ok(res) => Ok((res, buf_bytes)),
+        Err(err) => Err((err, buf_bytes)),
+    }
 }
 
 // --- Private implementation details ----------------------------------------------------------------------------------
