@@ -1,3 +1,8 @@
+> [!CAUTION]
+> This repository has been archived as its functionality has been subsumed by [`kmip-protocol`](https://github.com/NLnetLabs/kmip-protocol) crate.
+
+---
+
 [![CI](https://github.com/NLnetLabs/kmip-ttlv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/NLnetLabs/kmip-ttlv/actions/workflows/ci.yml)
 [![Crate](https://img.shields.io/crates/v/kmip-ttlv)](crates.io/crates/kmip-ttlv)
 [![Docs](https://img.shields.io/docsrs/kmip-ttlv)](https://docs.rs/kmip-ttlv/)
